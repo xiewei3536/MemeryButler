@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build universal .app and .dmg
+        run: ./build.sh
+
+      - name: Verify universal binary
+        run: lipo -info dist/MemoryButler.app/Contents/MacOS/MemoryButler
+
+      - name: Create release and upload DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" \
+            --title "MemoryButler $TAG" \
+            --notes-file .github/RELEASE_NOTES.md 2>/dev/null || true
+          gh release upload "$TAG" dist/MemoryButler.dmg --clobber
