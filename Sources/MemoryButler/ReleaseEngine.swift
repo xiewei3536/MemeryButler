@@ -3,10 +3,9 @@ import Foundation
 // MARK: - 觸發來源與紀錄
 
 enum ReleaseTrigger: String, Codable {
-    case manual    = "手動釋放"
-    case pressure  = "壓力警告"
-    case threshold = "可用偏低"
-    case schedule  = "定時排程"
+    case manual, pressure, threshold, schedule
+
+    var displayName: String { L("trigger.\(rawValue)") }
 
     var symbol: String {
         switch self {
@@ -81,8 +80,10 @@ final class ReleaseEngine: ObservableObject {
         let chunkSize = 128 << 20            // 128MB / 塊
         let deadline = started.addingTimeInterval(25)
 
-        let progressTick: @Sendable (Double) -> Void = { [weak self] p in
-            Task { @MainActor in
+        // 進度以 AsyncStream 回傳主執行緒，背景閉包完全不捕獲 self（嚴格併發檢查安全）
+        let (progressStream, progressCont) = AsyncStream.makeStream(of: Double.self)
+        let progressTask = Task { @MainActor [weak self] in
+            for await p in progressStream {
                 if let self, self.isRunning { self.state = .running(progress: p) }
             }
         }
@@ -91,10 +92,10 @@ final class ReleaseEngine: ObservableObject {
         await Task.detached(priority: .userInitiated) {
             var chunks: [UnsafeMutableRawPointer] = []
             var allocated: UInt64 = 0
-            let page = Int(MemoryReader.pageSize)
 
             defer {
                 for c in chunks { free(c) }
+                progressCont.finish()
             }
 
             while Date() < deadline && allocated < maxBallast {
@@ -108,15 +109,15 @@ final class ReleaseEngine: ObservableObject {
                 memset(p, 0x5A, chunkSize)
                 chunks.append(p)
                 allocated &+= UInt64(chunkSize)
-                _ = page
 
-                progressTick(min(0.9, 0.05 + Double(allocated) / Double(physical) * 1.2))
+                progressCont.yield(min(0.9, 0.05 + Double(allocated) / Double(physical) * 1.2))
                 usleep(15_000)   // 讓 compressor 跟上、UI 保持流暢
             }
 
             // 短暫停留讓回收收斂，再一次性歸還（defer 執行 free）
             usleep(250_000)
         }.value
+        progressTask.cancel()
 
         state = .running(progress: 0.95)
         // 歸還後給核心一點時間結算頁面

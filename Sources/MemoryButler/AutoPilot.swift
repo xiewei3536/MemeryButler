@@ -11,7 +11,7 @@ final class AutoPilot: ObservableObject {
     /// 自適應倍率（釋放成效差 → 拉長冷卻，最多 4 倍）
     @Published private(set) var backoffMultiplier: Double = 1.0
     /// 最近一次自動決策說明（顯示在 UI）
-    @Published private(set) var lastDecision: String = "監控中"
+    @Published private(set) var lastDecision: String = L("decision.monitoring")
 
     private let monitor: MemoryMonitor
     private let engine: ReleaseEngine
@@ -36,7 +36,7 @@ final class AutoPilot: ObservableObject {
         monitor.pressureEvent
             .sink { [weak self] level in
                 guard let self, level != .normal else { return }
-                self.attempt(trigger: .pressure, reason: "核心發出\(level.label)壓力訊號")
+                self.attempt(trigger: .pressure, reason: LF("decision.reason.pressureSignal", level.label))
             }
             .store(in: &cancellables)
     }
@@ -50,7 +50,7 @@ final class AutoPilot: ObservableObject {
 
         // 規則 1：壓力達警告以上
         if settings.triggerOnPressure, sample.pressure != .normal {
-            attempt(trigger: .pressure, reason: "記憶體壓力\(sample.pressure.label)")
+            attempt(trigger: .pressure, reason: LF("decision.reason.pressure", sample.pressure.label))
             return
         }
 
@@ -62,7 +62,7 @@ final class AutoPilot: ObservableObject {
                     if Date().timeIntervalSince(since) >= 30 {
                         thresholdBreachedSince = nil
                         attempt(trigger: .threshold,
-                                reason: "可用記憶體僅 \(Int(availPct))%，已持續 30 秒")
+                                reason: LF("decision.reason.threshold", Int(availPct)))
                         return
                     }
                 } else {
@@ -77,7 +77,7 @@ final class AutoPilot: ObservableObject {
         if settings.scheduleEnabled {
             let interval = TimeInterval(settings.scheduleMinutes * 60)
             if Date().timeIntervalSince(lastScheduledRun) >= interval {
-                attempt(trigger: .schedule, reason: "已達 \(settings.scheduleMinutes) 分鐘排程")
+                attempt(trigger: .schedule, reason: LF("decision.reason.schedule", settings.scheduleMinutes))
                 return
             }
         }
@@ -90,18 +90,18 @@ final class AutoPilot: ObservableObject {
 
         // 低耗電模式守門：使用者在省電，不要湊熱鬧
         if settings.pauseOnLowPower, ProcessInfo.processInfo.isLowPowerModeEnabled {
-            lastDecision = "低耗電模式中，暫停自動釋放"
+            lastDecision = L("decision.lowpower")
             return
         }
 
         // 冷卻守門
         guard Date() >= nextAllowedAt else {
             let m = Int(ceil(cooldownRemaining / 60))
-            lastDecision = "\(reason)（冷卻中，約 \(m) 分鐘後可再釋放）"
+            lastDecision = LF("decision.cooling", reason, m)
             return
         }
 
-        lastDecision = "\(reason) → 自動釋放"
+        lastDecision = LF("decision.acting", reason)
         if trigger == .schedule { lastScheduledRun = Date() }
 
         Task { [weak self] in
@@ -117,10 +117,10 @@ final class AutoPilot: ObservableObject {
         guard let event else { return }
         if event.reclaimed < (200 << 20) {
             backoffMultiplier = min(4.0, backoffMultiplier * 2)
-            lastDecision = "成效有限（\(Fmt.bytes(event.reclaimed))），拉長冷卻避免空轉"
+            lastDecision = LF("decision.limited", Fmt.bytes(event.reclaimed))
         } else {
             if event.reclaimed > (1 << 30) { backoffMultiplier = 1.0 }
-            lastDecision = "已釋放 \(Fmt.bytes(event.reclaimed))"
+            lastDecision = LF("decision.freed", Fmt.bytes(event.reclaimed))
         }
         let cooldown = settings.cooldownMinutes * 60 * backoffMultiplier
         nextAllowedAt = Date().addingTimeInterval(cooldown)

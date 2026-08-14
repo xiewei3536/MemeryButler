@@ -10,9 +10,9 @@ enum PressureLevel: Int, Codable {
 
     var label: String {
         switch self {
-        case .normal:   return "良好"
-        case .warning:  return "偏高"
-        case .critical: return "緊繃"
+        case .normal:   return L("pressure.normal")
+        case .warning:  return L("pressure.warning")
+        case .critical: return L("pressure.critical")
         }
     }
 }

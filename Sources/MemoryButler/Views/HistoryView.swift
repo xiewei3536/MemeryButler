@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @ObservedObject private var engine = AppModel.shared.engine
+    @ObservedObject private var settings = AppModel.shared.settings
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()
@@ -16,7 +17,7 @@ struct HistoryView: View {
             } else {
                 summaryCard
                 eventList
-                Button("清除紀錄") { engine.clearEvents() }
+                Button(L("hist.clear")) { engine.clearEvents() }
                     .buttonStyle(.plain)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -29,9 +30,9 @@ struct HistoryView: View {
             Image(systemName: "moon.zzz.fill")
                 .font(.system(size: 30))
                 .foregroundStyle(.tertiary)
-            Text("還沒有釋放紀錄")
+            Text(L("hist.empty.title"))
                 .font(.system(size: 12.5, weight: .medium))
-            Text("手動釋放或等管家自動出手後,\n每一次整理都會記在這裡。")
+            Text(L("hist.empty.sub"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -45,7 +46,7 @@ struct HistoryView: View {
         return Card {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("累計釋放")
+                    Text(L("hist.total"))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                     Text(Fmt.bytes(total))
@@ -53,7 +54,7 @@ struct HistoryView: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("次數")
+                    Text(L("hist.count"))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                     Text("\(engine.events.count)")
@@ -73,7 +74,7 @@ struct HistoryView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(e.trigger.rawValue)
+                            Text(e.trigger.displayName)
                                 .font(.system(size: 12, weight: .medium))
                             Text(Self.dateFmt.string(from: e.date))
                                 .font(.system(size: 10.5))

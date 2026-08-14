@@ -32,6 +32,8 @@ Macs with 8GB of RAM spend a lot of time swapping and compressing memory, and ev
 - 🔋 **Considerate guards** — pauses in Low Power Mode, brakes immediately at critical pressure, keeps a 300MB safety floor
 - 🎛 **Polished native UI** — pressure ring gauge, App/Wired/Compressed/Cached breakdown, a live 5-minute usage chart with hover readout, and a full release history log
 - 📊 **Menu bar at a glance** — live usage percentage right in your menu bar
+- 🌐 **Multilingual UI** — English, Simplified Chinese, Traditional Chinese; switch instantly in-app or follow the system
+- 🔄 **Built-in auto-update** — checks GitHub Releases periodically, notifies you of new versions, and downloads & installs in one click (no need to revisit the releases page)
 - 🚀 **Universal Binary** — one app for both Intel and Apple Silicon, launch-at-login supported
 
 ## Install

@@ -21,6 +21,17 @@ final class SettingsStore: ObservableObject {
     // 外觀
     @Published var showPercentInMenuBar: Bool { didSet { Self.d.set(showPercentInMenuBar, forKey: "showPercentInMenuBar") } }
 
+    // 語言
+    @Published var language: AppLanguage {
+        didSet {
+            Self.d.set(language.rawValue, forKey: "appLanguage")
+            L10n.language = language
+        }
+    }
+
+    // 更新
+    @Published var autoUpdateCheck: Bool { didSet { Self.d.set(autoUpdateCheck, forKey: "autoUpdateCheck") } }
+
     // 登入啟動
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
@@ -35,6 +46,8 @@ final class SettingsStore: ObservableObject {
             "cooldownMinutes": 15.0,
             "pauseOnLowPower": true,
             "showPercentInMenuBar": true,
+            "appLanguage": "system",
+            "autoUpdateCheck": true,
         ])
         autoEnabled         = Self.d.bool(forKey: "autoEnabled")
         triggerOnPressure   = Self.d.bool(forKey: "triggerOnPressure")
@@ -45,6 +58,9 @@ final class SettingsStore: ObservableObject {
         cooldownMinutes     = Self.d.double(forKey: "cooldownMinutes")
         pauseOnLowPower     = Self.d.bool(forKey: "pauseOnLowPower")
         showPercentInMenuBar = Self.d.bool(forKey: "showPercentInMenuBar")
+        language = AppLanguage(rawValue: Self.d.string(forKey: "appLanguage") ?? "system") ?? .system
+        autoUpdateCheck = Self.d.bool(forKey: "autoUpdateCheck")
+        L10n.language = language
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {

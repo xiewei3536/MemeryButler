@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     let engine: ReleaseEngine
     let settings: SettingsStore
     let autopilot: AutoPilot
+    let updater: Updater
 
     private init() {
         let monitor = MemoryMonitor()
@@ -20,6 +21,7 @@ final class AppModel: ObservableObject {
         self.engine = engine
         self.settings = settings
         self.autopilot = AutoPilot(monitor: monitor, engine: engine, settings: settings)
+        self.updater = Updater(settings: settings)
         monitor.start()
     }
 

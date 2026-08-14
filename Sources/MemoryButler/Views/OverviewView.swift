@@ -6,9 +6,11 @@ struct OverviewView: View {
     @ObservedObject private var engine = AppModel.shared.engine
     @ObservedObject private var autopilot = AppModel.shared.autopilot
     @ObservedObject private var settings = AppModel.shared.settings
+    @ObservedObject private var updater = AppModel.shared.updater
 
     var body: some View {
         VStack(spacing: 10) {
+            if updater.updateAvailable { UpdateBanner() }
             gaugeSection
             tileGrid
             HistoryChartCard()
@@ -26,15 +28,15 @@ struct OverviewView: View {
                 fraction: s.usedFraction,
                 level: s.pressure,
                 centerTitle: Fmt.percent(s.usedFraction),
-                centerSubtitle: "已使用"
+                centerSubtitle: L("gauge.used")
             )
             .frame(width: 116, height: 116)
 
             VStack(alignment: .leading, spacing: 7) {
                 PressureChip(level: s.pressure)
-                summaryLine(title: "可用", value: Fmt.bytes(s.available), emphasized: true)
-                summaryLine(title: "總量", value: Fmt.bytes(s.total))
-                summaryLine(title: "交換空間", value: Fmt.bytes(s.swapUsed))
+                summaryLine(title: L("sum.available"), value: Fmt.bytes(s.available), emphasized: true)
+                summaryLine(title: L("sum.total"), value: Fmt.bytes(s.total))
+                summaryLine(title: L("sum.swap"), value: Fmt.bytes(s.swapUsed))
             }
             Spacer(minLength: 0)
         }
@@ -60,10 +62,10 @@ struct OverviewView: View {
         let s = monitor.current
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
                          spacing: 8) {
-            StatTile(title: "App 記憶體", value: Fmt.bytes(s.appMemory), symbol: "square.grid.2x2")
-            StatTile(title: "已固定", value: Fmt.bytes(s.wired), symbol: "lock")
-            StatTile(title: "已壓縮", value: Fmt.bytes(s.compressed), symbol: "archivebox")
-            StatTile(title: "快取檔案", value: Fmt.bytes(s.cached), symbol: "internaldrive")
+            StatTile(title: L("tile.app"), value: Fmt.bytes(s.appMemory), symbol: "square.grid.2x2")
+            StatTile(title: L("tile.wired"), value: Fmt.bytes(s.wired), symbol: "lock")
+            StatTile(title: L("tile.compressed"), value: Fmt.bytes(s.compressed), symbol: "archivebox")
+            StatTile(title: L("tile.cached"), value: Fmt.bytes(s.cached), symbol: "internaldrive")
         }
     }
 
@@ -77,13 +79,13 @@ struct OverviewView: View {
                     .foregroundStyle(settings.autoEnabled ? Theme.series : .secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
-                        Text(settings.autoEnabled ? "智慧自動釋放已開啟" : "智慧自動釋放已關閉")
+                        Text(settings.autoEnabled ? L("auto.on") : L("auto.off"))
                             .font(.system(size: 12, weight: .medium))
                         if settings.autoEnabled {
                             cooldownBadge
                         }
                     }
-                    Text(settings.autoEnabled ? autopilot.lastDecision : "到「設定」分頁即可開啟")
+                    Text(settings.autoEnabled ? autopilot.lastDecision : L("auto.hint.off"))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -101,7 +103,8 @@ struct OverviewView: View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             let remaining = autopilot.cooldownRemaining
             if remaining > 0 {
-                Text("冷卻 \(Int(remaining) / 60):\(String(format: "%02d", Int(remaining) % 60))")
+                let t = "\(Int(remaining) / 60):\(String(format: "%02d", Int(remaining) % 60))"
+                Text(LF("auto.cooldown", t))
                     .font(.system(size: 9.5, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 5)
@@ -112,17 +115,87 @@ struct OverviewView: View {
     }
 }
 
+// MARK: - 更新橫幅
+
+struct UpdateBanner: View {
+    @ObservedObject private var updater = AppModel.shared.updater
+    @ObservedObject private var settings = AppModel.shared.settings
+
+    var body: some View {
+        Card {
+            HStack(spacing: 9) {
+                Image(systemName: "gift.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.series)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(LF("update.banner.title", "v" + (updater.availableVersion ?? "")))
+                        .font(.system(size: 12, weight: .semibold))
+                    detail
+                }
+                Spacer(minLength: 0)
+                trailing
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        switch updater.status {
+        case .downloading(let p):
+            ProgressView(value: p)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+                .frame(width: 150)
+        case .installing:
+            Text(L("update.installing"))
+                .font(.system(size: 10.5)).foregroundStyle(.secondary)
+        case .restarting:
+            Text(L("update.restarting"))
+                .font(.system(size: 10.5)).foregroundStyle(.secondary)
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        switch updater.status {
+        case .available:
+            Button {
+                Task { await AppModel.shared.updater.downloadAndInstall() }
+            } label: {
+                Text(L("update.banner.button"))
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.accentGradient))
+            }
+            .buttonStyle(.plain)
+        case .downloading(let p):
+            Text(LF("update.downloading", Int(p * 100)))
+                .font(.system(size: 10.5, design: .rounded))
+                .foregroundStyle(.secondary)
+        case .installing, .restarting:
+            ProgressView().controlSize(.small)
+        default:
+            EmptyView()
+        }
+    }
+}
+
 // MARK: - 歷史曲線卡（單一序列:藍;0–100 固定刻度、零基線;懸停讀值）
 
 struct HistoryChartCard: View {
     @ObservedObject private var monitor = AppModel.shared.monitor
+    @ObservedObject private var settings = AppModel.shared.settings
     @State private var hovered: MemorySample?
 
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("記憶體使用率 · 最近 5 分鐘")
+                    Text(L("chart.title"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -152,8 +225,8 @@ struct HistoryChartCard: View {
         return Chart {
             ForEach(samples, id: \.date) { s in
                 AreaMark(
-                    x: .value("時間", s.date),
-                    y: .value("使用率", s.usedFraction * 100)
+                    x: .value("t", s.date),
+                    y: .value("used", s.usedFraction * 100)
                 )
                 .interpolationMethod(.monotone)
                 .foregroundStyle(
@@ -163,20 +236,20 @@ struct HistoryChartCard: View {
                     )
                 )
                 LineMark(
-                    x: .value("時間", s.date),
-                    y: .value("使用率", s.usedFraction * 100)
+                    x: .value("t", s.date),
+                    y: .value("used", s.usedFraction * 100)
                 )
                 .interpolationMethod(.monotone)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
                 .foregroundStyle(Theme.series)
             }
             if let h = hovered {
-                RuleMark(x: .value("時間", h.date))
+                RuleMark(x: .value("t", h.date))
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .foregroundStyle(Color.primary.opacity(0.25))
                 PointMark(
-                    x: .value("時間", h.date),
-                    y: .value("使用率", h.usedFraction * 100)
+                    x: .value("t", h.date),
+                    y: .value("used", h.usedFraction * 100)
                 )
                 .symbolSize(46)
                 .foregroundStyle(Theme.series)
@@ -213,6 +286,7 @@ struct HistoryChartCard: View {
 
 struct ReleaseButton: View {
     @ObservedObject private var engine = AppModel.shared.engine
+    @ObservedObject private var settings = AppModel.shared.settings
 
     var body: some View {
         Button(action: { AppModel.shared.manualRelease() }) {
@@ -245,7 +319,7 @@ struct ReleaseButton: View {
             HStack(spacing: 7) {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 14, weight: .semibold))
-                Text("立即釋放記憶體")
+                Text(L("btn.release"))
                     .font(.system(size: 13.5, weight: .semibold))
             }
         case .running(let progress):
@@ -254,7 +328,7 @@ struct ReleaseButton: View {
                     .progressViewStyle(.linear)
                     .tint(.white)
                     .frame(width: 130)
-                Text("正在釋放…")
+                Text(L("btn.releasing"))
                     .font(.system(size: 13, weight: .semibold))
             }
             .padding(.horizontal, 14)
@@ -263,8 +337,8 @@ struct ReleaseButton: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
                 Text(reclaimed > (50 << 20)
-                     ? "已釋放 \(Fmt.bytes(reclaimed))"
-                     : "已完成整理")
+                     ? LF("btn.freed", Fmt.bytes(reclaimed))
+                     : L("btn.tidied"))
                     .font(.system(size: 13.5, weight: .semibold))
             }
         }

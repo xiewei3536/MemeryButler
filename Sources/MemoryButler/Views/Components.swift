@@ -24,7 +24,7 @@ struct PressureChip: View {
             Image(systemName: level.symbol)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(level.color)
-            Text("壓力\(level.label)")
+            Text(LF("chip.pressure", level.label))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.primary)
         }
