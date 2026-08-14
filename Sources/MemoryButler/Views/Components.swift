@@ -102,6 +102,22 @@ struct StatTile: View {
     }
 }
 
+// MARK: - 呼吸燈（監督中的視覺心跳）
+
+struct PulsingDot: View {
+    let color: Color
+    @State private var on = false
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 6, height: 6)
+            .opacity(on ? 1.0 : 0.3)
+            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: on)
+            .onAppear { on = true }
+    }
+}
+
 // MARK: - 設定列小標
 
 struct SettingRow<Content: View>: View {

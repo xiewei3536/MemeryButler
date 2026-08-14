@@ -72,12 +72,14 @@ struct OverviewView: View {
     // MARK: 自動釋放狀態
 
     private var autoStatusCard: some View {
-        Card {
-            HStack(spacing: 9) {
+        let s = monitor.current
+        return Card {
+            HStack(alignment: .top, spacing: 9) {
                 Image(systemName: settings.autoEnabled ? "bolt.badge.checkmark.fill" : "bolt.slash.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(settings.autoEnabled ? Theme.series : .secondary)
-                VStack(alignment: .leading, spacing: 2) {
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
                         Text(settings.autoEnabled ? L("auto.on") : L("auto.off"))
                             .font(.system(size: 12, weight: .medium))
@@ -85,10 +87,28 @@ struct OverviewView: View {
                             cooldownBadge
                         }
                     }
-                    Text(settings.autoEnabled ? autopilot.lastDecision : L("auto.hint.off"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if settings.autoEnabled {
+                        // 監督心跳:呼吸燈 + 即時壓力/可用量/檢查次數
+                        HStack(spacing: 5) {
+                            PulsingDot(color: s.pressure.color)
+                            Text(LF("auto.live", s.pressure.label,
+                                    Fmt.bytes(s.available), autopilot.evaluationCount))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        // 最近一次決策(帶時間戳)
+                        if let at = autopilot.lastDecisionAt {
+                            Text("\(Fmt.time.string(from: at))  \(autopilot.lastDecision)")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        Text(L("auto.hint.off"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 0)
                 Toggle("", isOn: $settings.autoEnabled)

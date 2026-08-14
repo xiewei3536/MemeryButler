@@ -12,6 +12,10 @@ final class AutoPilot: ObservableObject {
     @Published private(set) var backoffMultiplier: Double = 1.0
     /// 最近一次自動決策說明（顯示在 UI）
     @Published private(set) var lastDecision: String = L("decision.monitoring")
+    /// 最近一次決策的時間（nil = 尚無決策）
+    @Published private(set) var lastDecisionAt: Date?
+    /// 累計評估次數（監督心跳的證據）
+    @Published private(set) var evaluationCount: Int = 0
 
     private let monitor: MemoryMonitor
     private let engine: ReleaseEngine
@@ -46,6 +50,7 @@ final class AutoPilot: ObservableObject {
     // MARK: - 規則評估
 
     private func evaluate(_ sample: MemorySample) {
+        evaluationCount += 1
         guard settings.autoEnabled, !engine.isRunning else { return }
 
         // 規則 1：壓力達警告以上
@@ -90,18 +95,18 @@ final class AutoPilot: ObservableObject {
 
         // 低耗電模式守門：使用者在省電，不要湊熱鬧
         if settings.pauseOnLowPower, ProcessInfo.processInfo.isLowPowerModeEnabled {
-            lastDecision = L("decision.lowpower")
+            decide(L("decision.lowpower"))
             return
         }
 
         // 冷卻守門
         guard Date() >= nextAllowedAt else {
             let m = Int(ceil(cooldownRemaining / 60))
-            lastDecision = LF("decision.cooling", reason, m)
+            decide(LF("decision.cooling", reason, m))
             return
         }
 
-        lastDecision = LF("decision.acting", reason)
+        decide(LF("decision.acting", reason))
         if trigger == .schedule { lastScheduledRun = Date() }
 
         Task { [weak self] in
@@ -115,15 +120,26 @@ final class AutoPilot: ObservableObject {
     /// 釋放 > 1GB 表示很有效，回復正常節奏。
     private func applyAdaptiveCooldown(after event: ReleaseEvent?) {
         guard let event else { return }
+        // 連一塊壓載都吃不進去 = 系統忙到無法協助,2 分鐘後短冷卻重試(不算失敗)
+        if (event.ballast ?? 0) < (128 << 20) {
+            decide(L("decision.tooTight"))
+            nextAllowedAt = Date().addingTimeInterval(120)
+            return
+        }
         if event.reclaimed < (200 << 20) {
             backoffMultiplier = min(4.0, backoffMultiplier * 2)
-            lastDecision = LF("decision.limited", Fmt.bytes(event.reclaimed))
+            decide(LF("decision.limited", Fmt.bytes(event.reclaimed)))
         } else {
             if event.reclaimed > (1 << 30) { backoffMultiplier = 1.0 }
-            lastDecision = LF("decision.freed", Fmt.bytes(event.reclaimed))
+            decide(LF("decision.freed", Fmt.bytes(event.reclaimed)))
         }
         let cooldown = settings.cooldownMinutes * 60 * backoffMultiplier
         nextAllowedAt = Date().addingTimeInterval(cooldown)
+    }
+
+    private func decide(_ text: String) {
+        lastDecision = text
+        lastDecisionAt = Date()
     }
 
     /// 手動釋放後也重置冷卻計時（避免手動後緊接著自動又跑一次）

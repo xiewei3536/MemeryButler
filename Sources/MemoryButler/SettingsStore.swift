@@ -40,7 +40,7 @@ final class SettingsStore: ObservableObject {
             "autoEnabled": true,
             "triggerOnPressure": true,
             "triggerOnThreshold": true,
-            "thresholdPercent": 12.0,
+            "thresholdPercent": 20.0,
             "scheduleEnabled": false,
             "scheduleMinutes": 60,
             "cooldownMinutes": 15.0,

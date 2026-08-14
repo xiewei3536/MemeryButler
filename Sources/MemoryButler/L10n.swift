@@ -78,6 +78,7 @@ enum L10n {
 
         // 自動決策
         "decision.monitoring": ["Monitoring", "监控中", "監控中"],
+        "auto.live": ["Pressure %@ · %@ available · %d checks", "压力%@ · 可用 %@ · 已检查 %d 次", "壓力%@ · 可用 %@ · 已檢查 %d 次"],
         "decision.lowpower":   ["Low Power Mode — auto-free paused", "低电量模式中，暂停自动释放", "低耗電模式中，暫停自動釋放"],
         "decision.cooling":    ["%@ (cooling down, ~%d min)", "%@（冷却中，约 %d 分钟后可再释放）", "%@（冷卻中，約 %d 分鐘後可再釋放）"],
         "decision.acting":     ["%@ → auto-freeing", "%@ → 自动释放", "%@ → 自動釋放"],
@@ -85,6 +86,7 @@ enum L10n {
         "decision.reason.pressure":  ["Memory pressure is %@", "内存压力%@", "記憶體壓力%@"],
         "decision.reason.threshold": ["Available only %d%%, sustained 30s", "可用内存仅 %d%%，已持续 30 秒", "可用記憶體僅 %d%%，已持續 30 秒"],
         "decision.reason.schedule":  ["%d-minute schedule reached", "已到 %d 分钟定时", "已達 %d 分鐘排程"],
+        "decision.tooTight": ["System too busy to assist — will retry in 2 min", "系统正忙，2 分钟后再试", "系統正忙，2 分鐘後再試"],
         "decision.limited": ["Limited effect (%@), backing off", "收效有限（%@），拉长冷却避免空转", "成效有限（%@），拉長冷卻避免空轉"],
         "decision.freed":   ["Freed %@", "已释放 %@", "已釋放 %@"],
 

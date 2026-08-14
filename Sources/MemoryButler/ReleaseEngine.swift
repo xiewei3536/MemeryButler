@@ -23,6 +23,7 @@ struct ReleaseEvent: Codable, Identifiable {
     let trigger: ReleaseTrigger
     let reclaimed: Int64          // 釋放出的位元組（可能為 0）
     let duration: TimeInterval
+    let ballast: Int64?           // 實際吃進的壓載量（判斷這一趟有沒有真的做功）
 }
 
 // MARK: - 引擎狀態
@@ -39,7 +40,7 @@ enum EngineState: Equatable {
 // 迫使 XNU 的 memorystatus / compressor 立即回收閒置頁面、
 // 壓縮不活躍 App 的記憶體、丟棄可清除快取；隨後一次性歸還，
 // 系統便多出大量真正可用的閒置記憶體。全程免 root。
-// 安全機制：保底水位、壓力煞車、總量上限、時間上限。
+// 安全機制：緊繃壓力立即煞車、警告區限時 2.5 秒、總量上限、時間上限。
 
 @MainActor
 final class ReleaseEngine: ObservableObject {
@@ -73,8 +74,6 @@ final class ReleaseEngine: ObservableObject {
         state = .running(progress: 0.05)
 
         let physical = before.total
-        // 保底閒置水位：至少 300MB 或總量 4%，避免把系統逼進 critical 深水區
-        let floorBytes = max(300 << 20, physical / 25)
         // 單次最多索取實體記憶體的 90%（核心會邊回收邊給，實際遠低於此）
         let maxBallast = physical / 10 * 9
         let chunkSize = 128 << 20            // 128MB / 塊
@@ -88,10 +87,11 @@ final class ReleaseEngine: ObservableObject {
             }
         }
 
-        // 重活丟到背景執行緒
-        await Task.detached(priority: .userInitiated) {
+        // 重活丟到背景執行緒;回傳實際吃進的壓載量
+        let ballastAllocated: UInt64 = await Task.detached(priority: .userInitiated) {
             var chunks: [UnsafeMutableRawPointer] = []
             var allocated: UInt64 = 0
+            var warnSince: Date?
 
             defer {
                 for c in chunks { free(c) }
@@ -99,23 +99,35 @@ final class ReleaseEngine: ObservableObject {
             }
 
             while Date() < deadline && allocated < maxBallast {
-                // 煞車 1：閒置記憶體已被壓到保底水位 → 核心已完成大掃除
-                if MemoryReader.freeBytes() < floorBytes { break }
-                // 煞車 2：壓力達到緊繃 → 立刻收手
-                if MemoryReader.pressureLevel() == .critical { break }
+                let level = MemoryReader.pressureLevel()
+                // 煞車 1：壓力緊繃 → 立刻收手
+                if level == .critical { break }
+                // 煞車 2：進入「警告」區後再持續 2.5 秒——這段時間才是核心
+                // 真正回收快取、壓縮閒置 App 的時候，太早停手等於白跑
+                if level == .warning {
+                    if let w = warnSince {
+                        if Date().timeIntervalSince(w) >= 2.5 { break }
+                    } else {
+                        warnSince = Date()
+                    }
+                } else {
+                    warnSince = nil
+                }
 
                 guard let p = malloc(chunkSize) else { break }
-                // 觸碰每一頁強制實際佔用（memset 整塊最快也最徹底）
-                memset(p, 0x5A, chunkSize)
+                // 不可壓縮的隨機填充:若用均勻位元組,核心會直接壓縮壓載本身
+                //（幾乎零成本）而不去回收其他記憶體,整趟就白費了
+                arc4random_buf(p, chunkSize)
                 chunks.append(p)
                 allocated &+= UInt64(chunkSize)
 
                 progressCont.yield(min(0.9, 0.05 + Double(allocated) / Double(physical) * 1.2))
-                usleep(15_000)   // 讓 compressor 跟上、UI 保持流暢
+                usleep(15_000)   // 讓回收管線跟上、UI 保持流暢
             }
 
-            // 短暫停留讓回收收斂，再一次性歸還（defer 執行 free）
-            usleep(250_000)
+            // 高壓下多持有片刻讓回收收斂，再一次性歸還（defer 執行 free）
+            usleep(400_000)
+            return allocated
         }.value
         progressTask.cancel()
 
@@ -124,10 +136,13 @@ final class ReleaseEngine: ObservableObject {
         try? await Task.sleep(nanoseconds: 400_000_000)
 
         let after = MemoryReader.sample()
-        let reclaimed = max(0, Int64(after.available) - Int64(before.available))
+        // 統計口徑:閒置(free)記憶體的淨增量。
+        // 不能用「可用(=總量-已用)」——被清出的快取本來就算在可用裡,差值恆為 0
+        let reclaimed = max(0, Int64(after.free) - Int64(before.free))
         let event = ReleaseEvent(
             id: UUID(), date: started, trigger: trigger,
-            reclaimed: reclaimed, duration: Date().timeIntervalSince(started)
+            reclaimed: reclaimed, duration: Date().timeIntervalSince(started),
+            ballast: Int64(ballastAllocated)
         )
 
         events.insert(event, at: 0)
