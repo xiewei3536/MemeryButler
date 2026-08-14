@@ -135,6 +135,12 @@ enum L10n {
         "update.notif.body":  ["Version %@ is out. Open the menu bar panel to update in one click.", "新版本 %@ 已发布，打开菜单栏面板即可一键更新。", "新版本 %@ 已發布，打開選單列面板即可一鍵更新。"],
         "update.dev":         ["Updates require the installed .app", "开发模式下无法自动更新", "開發模式下無法自動更新"],
 
+        // 關於
+        "about.opensource":  ["Free & open-source software under the MIT License", "基于 MIT 许可证的自由开源软件", "基於 MIT 授權的自由開源軟體"],
+        "about.viewSource":  ["Source Code", "查看源码", "查看原始碼"],
+        "about.reportIssue": ["Report an Issue", "反馈问题", "回報問題"],
+        "about.releases":    ["All Releases", "全部版本", "全部版本"],
+
         // 紀錄
         "hist.empty.title": ["No releases yet", "还没有释放记录", "還沒有釋放紀錄"],
         "hist.empty.sub":   ["Free manually or let the butler act —\nevery tidy-up will be logged here.", "手动释放或等管家自动出手后，\n每一次整理都会记在这里。", "手動釋放或等管家自動出手後，\n每一次整理都會記在這裡。"],

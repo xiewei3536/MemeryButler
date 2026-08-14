@@ -51,9 +51,15 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack {
-            Text("MemoryButler \(Updater.isBundled ? Updater.currentVersion : "dev")")
+            Link(destination: AppInfo.repoURL) {
+                HStack(spacing: 3) {
+                    Text("MemoryButler \(Updater.isBundled ? Updater.currentVersion : "dev")")
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: 8))
+                }
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
+            }
             Spacer()
             Button {
                 NSApp.terminate(nil)

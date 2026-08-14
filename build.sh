@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP="MemoryButler"
 DISPLAY_NAME="記憶體管家"
-VERSION="1.1.0"
+VERSION="1.1.1"
 BUNDLE_ID="com.bowei.memorybutler"
 DIST="dist"
 

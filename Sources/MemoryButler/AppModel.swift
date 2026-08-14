@@ -54,6 +54,13 @@ extension PressureLevel {
     }
 }
 
+enum AppInfo {
+    static let repoURL = URL(string: "https://github.com/xiewei3536/MemeryButler")!
+    static let issuesURL = URL(string: "https://github.com/xiewei3536/MemeryButler/issues")!
+    static let releasesURL = URL(string: "https://github.com/xiewei3536/MemeryButler/releases")!
+    static let licenseURL = URL(string: "https://github.com/xiewei3536/MemeryButler/blob/main/LICENSE")!
+}
+
 enum Theme {
     /// 單一資料序列用色（唯一序列，不與其他類別色相鄰）
     static let series = Color(nsColor: .systemBlue)

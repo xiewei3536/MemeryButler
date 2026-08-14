@@ -10,6 +10,7 @@ struct SettingsView: View {
             behaviorCard
             generalCard
             updateCard
+            aboutCard
         }
     }
 
@@ -166,6 +167,44 @@ struct SettingsView: View {
                         .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 }
             }
+        }
+    }
+
+    // MARK: 關於與開源資訊
+
+    private var aboutCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 9) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.series)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("MemoryButler \(Updater.isBundled ? Updater.currentVersion : "dev")")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Text(L("about.opensource"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 14) {
+                    aboutLink(L("about.viewSource"), "curlybraces", AppInfo.repoURL)
+                    aboutLink(L("about.reportIssue"), "ladybug", AppInfo.issuesURL)
+                    aboutLink("MIT", "doc.text", AppInfo.licenseURL)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private func aboutLink(_ title: String, _ symbol: String, _ url: URL) -> some View {
+        Link(destination: url) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.system(size: 10))
+                Text(title).font(.system(size: 11))
+            }
+            .foregroundStyle(Theme.series)
         }
     }
 
