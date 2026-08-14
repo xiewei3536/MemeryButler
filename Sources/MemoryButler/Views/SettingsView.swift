@@ -5,13 +5,17 @@ struct SettingsView: View {
     @ObservedObject private var updater = AppModel.shared.updater
 
     var body: some View {
-        VStack(spacing: 10) {
-            automationCard
-            behaviorCard
-            generalCard
-            updateCard
-            aboutCard
+        ScrollView {
+            VStack(spacing: 10) {
+                automationCard
+                behaviorCard
+                generalCard
+                updateCard
+                aboutCard
+            }
+            .padding(.bottom, 2)
         }
+        .frame(height: 432)   // 固定高度,內容以滾輪捲動
     }
 
     // MARK: 自動化
