@@ -80,6 +80,8 @@ enum Layout {
 enum Theme {
     /// 單一資料序列用色（唯一序列，不與其他類別色相鄰）
     static let series = Color(nsColor: .systemBlue)
+    /// CPU 用量的序列色：與記憶體的藍明確區分，又不與警告用的橘、紅混淆
+    static let cpuSeries = Color(nsColor: .systemIndigo)
     static let accentGradient = LinearGradient(
         colors: [Color(nsColor: .systemBlue), Color(nsColor: .systemIndigo)],
         startPoint: .topLeading, endPoint: .bottomTrailing

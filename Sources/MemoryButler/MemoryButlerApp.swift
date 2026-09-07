@@ -87,24 +87,37 @@ enum SelfTest {
     @MainActor
     private static func renderSnapshots(to dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        // MEMORYBUTLER_SNAPSHOT_DARK=1 → 以深色外觀渲染（動態系統色會跟著解析）
+        let dark = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DARK"] == "1"
+        if dark { NSApp.appearance = NSAppearance(named: .darkAqua) }
+        let suffix = dark ? "-dark" : ""
+
         for tab in PopoverTab.allCases {
-            render(PopoverView(initialTab: tab), name: "\(tab)", dir: dir)
+            render(PopoverView(initialTab: tab), name: "\(tab)\(suffix)", dir: dir, dark: dark)
         }
-        // ScrollView 內容不會被 ImageRenderer 畫出來，App 列表另外直接渲染（含兩段式確認狀態）
+        // 列表另外直接渲染（含兩段式確認狀態），並各渲染一次記憶體／CPU 排序
         let apps = AppModel.shared.apps
-        render(
-            AppRowsView(rows: apps.rows, other: apps.other,
-                        confirmingId: .constant(apps.rows.first?.id))
-                .padding(14)
-                .frame(width: 332),
-            name: "apps-rows", dir: dir
-        )
+        for key in [AppUsageModel.SortKey.memory, .cpu] {
+            apps.sortKey = key
+            render(
+                AppRowsView(rows: apps.rows, other: apps.other, sortKey: key,
+                            confirmingId: .constant(apps.rows.first?.id))
+                    .padding(14)
+                    .frame(width: 332),
+                name: "apps-rows-\(key == .cpu ? "cpu" : "memory")\(suffix)", dir: dir, dark: dark
+            )
+        }
+        apps.sortKey = .memory
     }
 
     /// AppKit 支援的控制項（分頁選擇器、開關、連結）在 ImageRenderer 裡會是黃色佔位，屬正常現象
     @MainActor
-    private static func render<V: View>(_ view: V, name: String, dir: String) {
-        let renderer = ImageRenderer(content: view.background(Color(nsColor: .windowBackgroundColor)))
+    private static func render<V: View>(_ view: V, name: String, dir: String, dark: Bool = false) {
+        let renderer = ImageRenderer(
+            content: view
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, dark ? .dark : .light)
+        )
         renderer.scale = 2
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,

@@ -74,11 +74,8 @@ struct SystemView: View {
             if speed < 100 { return LF("sys.throttle.speedOnly", speed) }
             return s.thermalState == .nominal || s.thermalState == .fair ? L("sys.throttle.none") : L("sys.throttle.hot")
         }()
-        let battery: String = {
-            guard let b = s.battery else { return dash }
-            if let h = b.healthFraction { return LF("sys.battery.value", Int((h * 100).rounded()), b.cycleCount) }
-            return LF("sys.battery.cycles", b.cycleCount)
-        }()
+        // 窄格只放健康百分比；循環次數放到下方資訊卡
+        let battery: String = s.battery?.healthFraction.map { Fmt.percent($0) } ?? dash
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 8) {
             StatTile(title: L("sys.cpu"),
                      value: s.cpuUsage.map { Fmt.percent(min($0, 1)) } ?? dash,
@@ -118,6 +115,10 @@ struct SystemView: View {
                 }
                 if let w = s.systemPower {
                     infoRow(L("sys.systemPower"), String(format: "%.1f W", w))
+                }
+                if let b = s.battery, b.cycleCount > 0 {
+                    infoRow(L("sys.battery.cycles"), LF("sys.battery.cycles.value", b.cycleCount)
+                            + (b.temperatureC.map { String(format: " · %.0f°C", $0) } ?? ""))
                 }
                 infoRow(L("sys.uptime"), Fmt.duration(s.uptime))
                 HStack {

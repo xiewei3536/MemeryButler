@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 「App」分頁：誰佔用最多記憶體，一鍵溫和結束（等同在該 App 按 ⌘Q）
+/// 「App」分頁：誰佔用最多記憶體／CPU，一鍵溫和結束（等同在該 App 按 ⌘Q）
 struct AppsView: View {
     @ObservedObject private var usage = AppModel.shared.apps
     @ObservedObject private var settings = AppModel.shared.settings
@@ -11,7 +11,8 @@ struct AppsView: View {
             header
             if usage.hasScanned {
                 // 最多 8 個 App + 1 列背景程序，不需要捲動；視窗高度跟著列數自適應
-                AppRowsView(rows: usage.rows, other: usage.other, confirmingId: $confirmingId)
+                AppRowsView(rows: usage.rows, other: usage.other,
+                            sortKey: usage.sortKey, confirmingId: $confirmingId)
                 footer
             } else {
                 placeholder
@@ -26,29 +27,33 @@ struct AppsView: View {
         }
     }
 
+    /// 標題跟著排序鍵走；排序切換放標題列右側，副標題獨立一行才不會被擠到截斷
     private var header: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "list.bullet.rectangle.portrait.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.series)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("apps.title"))
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Image(systemName: usage.sortKey == .cpu ? "cpu.fill" : "list.bullet.rectangle.portrait.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(usage.sortKey == .cpu ? Theme.cpuSeries : Theme.series)
+                    .frame(width: 18)
+                Text(usage.sortKey == .cpu ? L("apps.title.cpu") : L("apps.title"))
                     .font(.system(size: 12.5, weight: .semibold))
-                Text(L("apps.sub"))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Picker("", selection: $usage.sortKey) {
+                    Text(L("apps.sort.memory")).tag(AppUsageModel.SortKey.memory)
+                    Text(L("apps.sort.cpu")).tag(AppUsageModel.SortKey.cpu)
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.mini)
+                .labelsHidden()
+                .fixedSize()
+                .help(L("help.apps.sort"))
             }
-            Spacer(minLength: 0)
-            // 依記憶體或 CPU 排序：燒記憶體和燒 CPU 的常常不是同一個
-            Picker("", selection: $usage.sortKey) {
-                Text(L("apps.sort.memory")).tag(AppUsageModel.SortKey.memory)
-                Text(L("apps.sort.cpu")).tag(AppUsageModel.SortKey.cpu)
-            }
-            .pickerStyle(.segmented)
-            .controlSize(.mini)
-            .labelsHidden()
-            .fixedSize()
-            .help(L("help.apps.sort"))
+            Text(L("apps.sub"))
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.leading, 26)
         }
     }
 
@@ -75,53 +80,71 @@ struct AppsView: View {
 struct AppRowsView: View {
     let rows: [AppMemoryUsage]
     let other: AppMemoryUsage?
+    let sortKey: AppUsageModel.SortKey
     @Binding var confirmingId: String?
 
+    private var everything: [AppMemoryUsage] { rows + (other.map { [$0] } ?? []) }
+
     var body: some View {
-        let maxFootprint = rows.first?.footprint ?? 1
+        // 分母永遠是「所有列的最大值」，條長絕不超過格子
+        let maxFootprint = max(everything.map(\.footprint).max() ?? 1, 1)
+        let maxCpu = max(everything.compactMap(\.cpuFraction).max() ?? 0, 0.5)   // 至少以半顆核心為滿格，避免 1% 看起來像滿載
         VStack(spacing: 6) {
-            ForEach(rows) { row($0, maxFootprint: maxFootprint) }
-            if let other { row(other, maxFootprint: maxFootprint) }
+            ForEach(everything) { row($0, maxFootprint: maxFootprint, maxCpu: maxCpu) }
         }
     }
 
-    private func row(_ r: AppMemoryUsage, maxFootprint: UInt64) -> some View {
-        let ratio = maxFootprint == 0 ? 0 : Double(r.footprint) / Double(maxFootprint)
-        return HStack(spacing: 9) {
-            icon(for: r)
-                .frame(width: 24, height: 24)
+    private func row(_ r: AppMemoryUsage, maxFootprint: UInt64, maxCpu: Double) -> some View {
+        // 主數字、比例條、副行資訊都跟著排序鍵走，看到什麼就是在比什麼
+        let byCpu = sortKey == .cpu
+        let ratio: Double = byCpu
+            ? min(1, (r.cpuFraction ?? 0) / maxCpu)
+            : min(1, Double(r.footprint) / Double(maxFootprint))
+        let primary: String = byCpu
+            ? (r.cpuFraction.map { Fmt.percent($0) } ?? L("sys.na"))
+            : Fmt.bytes(r.footprint)
+        let secondary: String = byCpu
+            ? LF("apps.processes", r.processCount) + " · " + Fmt.bytes(r.footprint)
+            : LF("apps.processes", r.processCount)
+                + (r.cpuFraction.map { " · " + LF("apps.cpu", Int(($0 * 100).rounded())) } ?? "")
+        let barColor: Color = r.app == nil ? Color.secondary.opacity(0.45) : (byCpu ? Theme.cpuSeries : Theme.series)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
+        return HStack(spacing: 10) {
+            icon(for: r)
+                .frame(width: 26, height: 26)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(r.name)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Spacer(minLength: 6)
-                    Text(Fmt.bytes(r.footprint))
+                    Spacer(minLength: 4)
+                    Text(primary)
                         .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 HStack(spacing: 8) {
-                    // 比例條：一眼看出誰最大（顏色只是輔助，數字永遠在旁邊）
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Color.primary.opacity(0.07))
-                            Capsule().fill(r.app == nil ? Color.secondary.opacity(0.5) : Theme.series)
+                            Capsule().fill(barColor)
                                 .frame(width: max(3, geo.size.width * ratio))
                         }
                     }
                     .frame(height: 4)
-                    Text(LF("apps.processes", r.processCount)
-                         + (r.cpuFraction.map { " · " + LF("apps.cpu", Int(($0 * 100).rounded())) } ?? ""))
-                        .font(.system(size: 10))
+                    Text(secondary)
+                        .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+                        .lineLimit(1)
                         .fixedSize()
                 }
             }
 
-            if r.app != nil {
+            if r.canQuit {
                 quitControls(for: r)
             }
         }
@@ -132,6 +155,7 @@ struct AppRowsView: View {
                 .fill(Color.primary.opacity(0.05))
         )
         .animation(.easeInOut(duration: 0.2), value: confirmingId)
+        .animation(.easeInOut(duration: 0.35), value: sortKey)
     }
 
     @ViewBuilder
@@ -142,7 +166,7 @@ struct AppRowsView: View {
                 .interpolation(.high)
         } else {
             Image(systemName: "gearshape.2.fill")
-                .font(.system(size: 14))
+                .font(.system(size: 15))
                 .foregroundStyle(.secondary)
         }
     }

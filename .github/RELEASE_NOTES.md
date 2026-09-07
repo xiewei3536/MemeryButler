@@ -1,3 +1,13 @@
+## What's new in 1.3.1
+
+**English** — Visual polish pass. Apps tab: bars were scaled against the first row, so after sorting by CPU the bars of bigger apps overflowed their cards; they now scale against the largest row and never exceed 100%. Sorting by CPU now makes CPU the headline figure and the bar (indigo), with memory in the secondary line; the title follows the sort. Header no longer truncates. Apple system components: Finder-class apps are listed without a Quit button, menu-bar-only system helpers fold into "Background & system processes". System tab: even tile heights (battery cycles moved to the info card). Overview chip now reads "Memory pressure", Activity Monitor's term, so it no longer seems to contradict the butler's verdict. Verified in light and dark mode.
+
+**简体中文** — 界面精致化。「应用」页：比例条原以第一行为分母，按 CPU 排序后内存更大的 App 会溢出卡片；现改以最大值为分母且不超过 100%。按 CPU 排序时主数字与比例条都改为 CPU（靛蓝），内存放副行，标题随排序变化；标题栏不再截断。系统组件：Finder 这类不再显示退出按钮，仅在菜单栏的系统小组件并入「后台与系统进程」。「系统」页六格高度一致（电池循环移到信息卡）。总览徽章改用活动监视器的用语「内存压力」，不再与判读看似矛盾。已在浅色与深色模式验证。
+
+**繁體中文** — 介面精緻化。「App」分頁：比例條原以第一列為分母，依 CPU 排序後記憶體更大的 App 會溢出卡片；現改以最大值為分母且不超過 100%。依 CPU 排序時主數字與比例條都改為 CPU（靛藍），記憶體放副行，標題隨排序變化；標題列不再截斷。系統元件：Finder 這類不再顯示結束鈕，僅在選單列的系統小元件併入「背景與系統程序」。「系統」分頁六格高度一致（電池循環移到資訊卡）。總覽徽章改用活動監視器的用語「記憶體壓力」，不再與判讀看似矛盾。已在淺色與深色模式驗證。
+
+---
+
 ## What's new in 1.3.0
 
 **English**

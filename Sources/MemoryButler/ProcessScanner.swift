@@ -17,6 +17,9 @@ struct AppMemoryUsage: Identifiable {
     let processCount: Int
     let app: NSRunningApplication?   // nil = 背景與系統程序（不提供結束）
     let cpuFraction: Double?         // 兩次掃描之間的 CPU 佈用（1.0 = 一顆核心跑滿）；第一次為 nil
+    let isSystem: Bool               // /System 底下的 Apple 元件（Finder、Spotlight…）：顯示但不提供結束
+
+    var canQuit: Bool { app != nil && !isSystem }
 }
 
 enum ProcessScanner {
@@ -35,6 +38,8 @@ enum ProcessScanner {
         let name: String
         let icon: NSImage?
         let app: NSRunningApplication
+        let isSystem: Bool          // /System 底下
+        let isAccessory: Bool       // 選單列／背景型 App（沒有 Dock 圖示）
     }
 
     /// 只傳值型別進背景執行緒（嚴格併發檢查安全）
@@ -71,11 +76,14 @@ enum ProcessScanner {
             case .regular, .accessory: break
             default: return nil
             }
+            let path = app.bundleURL?.path
             return RunningApp(pid: app.processIdentifier,
-                              bundlePath: app.bundleURL?.path,
+                              bundlePath: path,
                               name: app.localizedName ?? app.bundleIdentifier ?? "?",
                               icon: app.icon,
-                              app: app)
+                              app: app,
+                              isSystem: path?.hasPrefix("/System/") ?? false,
+                              isAccessory: app.activationPolicy == .accessory)
         }
     }
 
@@ -201,19 +209,26 @@ final class AppUsageModel: ObservableObject {
         }
 
         var result: [AppMemoryUsage] = []
+        var otherFootprint = out.otherFootprint, otherCount = out.otherCount, otherCpu = out.otherCpuTime
         for (i, app) in apps.enumerated() where out.footprints[i] > 0 {
+            // Apple 的選單列小元件（通用控制、Spotlight 的輔助…）沒有讓使用者操作的意義，併入背景程序
+            if app.isSystem && app.isAccessory {
+                otherFootprint &+= out.footprints[i]; otherCount += out.counts[i]; otherCpu &+= out.cpuTimes[i]
+                continue
+            }
             let id = "pid-\(app.pid)"
             result.append(AppMemoryUsage(
                 id: id, name: app.name, icon: app.icon,
                 footprint: out.footprints[i], processCount: out.counts[i], app: app.app,
-                cpuFraction: fraction(id: id, cpuTime: out.cpuTimes[i])
+                cpuFraction: fraction(id: id, cpuTime: out.cpuTimes[i]),
+                isSystem: app.isSystem
             ))
         }
         allRows = result
-        other = out.otherCount > 0
+        other = otherCount > 0
             ? AppMemoryUsage(id: "other", name: L("apps.other"), icon: nil,
-                             footprint: out.otherFootprint, processCount: out.otherCount, app: nil,
-                             cpuFraction: fraction(id: "other", cpuTime: out.otherCpuTime))
+                             footprint: otherFootprint, processCount: otherCount, app: nil,
+                             cpuFraction: fraction(id: "other", cpuTime: otherCpu), isSystem: true)
             : nil
         lastCpu = nextCpu
         selfFootprint = out.selfFootprint

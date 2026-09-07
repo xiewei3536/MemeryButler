@@ -55,7 +55,7 @@ enum L10n {
         "pressure.normal":   ["Good", "良好", "良好"],
         "pressure.warning":  ["Elevated", "偏高", "偏高"],
         "pressure.critical": ["Critical", "紧绷", "緊繃"],
-        "chip.pressure":     ["Pressure: %@", "压力%@", "壓力%@"],
+        "chip.pressure":     ["Memory pressure: %@", "内存压力%@", "記憶體壓力%@"],
 
         // 總覽
         "gauge.used":     ["Used", "已使用", "已使用"],
@@ -157,7 +157,8 @@ enum L10n {
         // App 分頁（誰在佔用記憶體）
         "tab.apps":        ["Apps", "应用", "App"],
         "apps.title":      ["Who's using memory", "谁在占用内存", "誰在佔用記憶體"],
-        "apps.sub":        ["Helpers grouped under their app · same figures as Activity Monitor", "辅助进程已归入所属 App · 与「活动监视器」口径相同", "輔助程序已歸入所屬 App · 與「活動監視器」口徑相同"],
+        "apps.title.cpu":  ["Who's using the CPU", "谁在占用 CPU", "誰在佔用 CPU"],
+        "apps.sub":        ["Same figures as Activity Monitor; helpers counted under their app", "与「活动监视器」口径相同，辅助进程计入所属 App", "與「活動監視器」口徑相同，輔助程序計入所屬 App"],
         "apps.scanning":   ["Scanning…", "正在扫描…", "正在掃描…"],
         "apps.processes":  ["%d processes", "%d 个进程", "%d 個程序"],
         "apps.other":      ["Background & system processes", "后台与系统进程", "背景與系統程序"],
@@ -216,8 +217,8 @@ enum L10n {
         "sys.throttle.none":      ["None", "无", "無"],
         "sys.throttle.hot":       ["Yes — running hot", "有，温度偏高", "有，溫度偏高"],
         "sys.battery":            ["Battery Health", "电池健康", "電池健康"],
-        "sys.battery.value":      ["%d%% · %d cycles", "%d%% · %d 次循环", "%d%% · 循環 %d 次"],
-        "sys.battery.cycles":     ["%d cycles", "%d 次循环", "循環 %d 次"],
+        "sys.battery.cycles":     ["Battery cycles", "电池循环", "電池循環"],
+        "sys.battery.cycles.value": ["%d", "%d 次", "%d 次"],
         "sys.display":            ["Display", "显示器", "螢幕"],
         "sys.display.hint":       ["Intel graphics struggle above 60Hz — 60Hz is smoother and cooler", "Intel 内显在高刷新率下很吃力，改 60Hz 更顺也更凉", "Intel 內顯在高更新率下很吃力，改 60Hz 更順也更涼"],
         "sys.systemPower":        ["Whole Mac", "整机功耗", "整機功耗"],
