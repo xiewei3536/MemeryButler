@@ -31,6 +31,7 @@ Macs with 8GB of RAM spend a lot of time swapping and compressing memory, and ev
 - 📈 **Adaptive cooldown** — if a release reclaims little (system genuinely busy), it backs off automatically instead of thrashing; big wins restore the normal pace
 - 🛑 **Swap brake** — the release stops the instant swap usage starts to grow, so it only drops caches and compresses idle pages; it never pushes other apps to disk (that's what makes "memory cleaners" backfire). Also pauses in Low Power Mode, when the Mac is running hot, and brakes at critical pressure
 - 🔍 **Who's using memory** — an Apps tab lists the biggest apps (helper processes grouped under their app, same figures as Activity Monitor) with a two-click graceful Quit — on 8GB, closing the hog is the fix that actually works
+- 🌡 **System tab** — CPU usage, temperature, power, fan speed, thermal throttling, battery health, display refresh rate and login-time background services, with a verdict on whether the Mac is slow because it is hot; the Apps tab also shows per-app CPU
 - 🩺 **Plain-language verdict** — one line tells you whether the Mac is smooth, compressing, or already living on disk, and what to do; hover any figure for an explanation
 - 🎛 **Polished native UI** — pressure ring gauge, App/Wired/Compressed/Cached breakdown, a live 5-minute usage chart with hover readout, and a full release history log
 - 📊 **Menu bar at a glance** — live usage percentage right in your menu bar

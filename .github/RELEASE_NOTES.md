@@ -1,3 +1,22 @@
+## What's new in 1.3.0
+
+**English**
+- 🌡 **System tab** — CPU usage, CPU temperature, CPU and whole-Mac power (SMC sensors, no root), fan speed, thermal throttling level and current speed limit, battery health and cycles, display resolution/refresh rate, uptime, and how many third-party background services start at login (with a jump to Login Items). A plain-language verdict tells you when the Mac is slow because it is *hot*, which on old MacBooks is at least as common as memory.
+- 🔥 **Apps tab shows CPU** — each app now shows its CPU use since the last refresh; sort by memory or by CPU to catch runaway apps.
+- 💡 Flags external displays above 60Hz on Intel graphics: dropping to 60Hz is smoother and cooler.
+
+**简体中文**
+- 🌡 **「系统」页**——CPU 使用率、CPU 温度、CPU 与整机功耗（SMC 传感器，免 root）、风扇转速、热降频等级与当前速度限制、电池健康与循环次数、显示器分辨率/刷新率、开机时长、开机常驻的第三方后台服务数量（可一键跳到登录项）。白话判读会告诉你 Mac 变慢是不是因为「热」——老 MacBook 上这至少和内存一样常见。
+- 🔥 **「应用」页显示 CPU**——每个 App 显示自上次刷新以来的 CPU 用量，可按内存或 CPU 排序，抓出失控的 App。
+- 💡 Intel 内显接高刷新率外接屏幕时提示：改 60Hz 更顺也更凉。
+
+**繁體中文**
+- 🌡 **「系統」分頁**——CPU 使用率、CPU 溫度、CPU 與整機功耗（SMC 感測器，免 root）、風扇轉速、熱降頻等級與目前速度限制、電池健康與循環次數、螢幕解析度／更新率、開機時長、開機常駐的第三方背景服務數量（可一鍵跳到登入項目）。白話判讀會告訴你 Mac 變慢是不是因為「熱」——老 MacBook 上這至少和記憶體一樣常見。
+- 🔥 **「App」分頁顯示 CPU**——每個 App 顯示自上次刷新以來的 CPU 用量，可依記憶體或 CPU 排序，抓出失控的 App。
+- 💡 Intel 內顯接高更新率外接螢幕時提示：改 60Hz 更順也更涼。
+
+---
+
 ## What's new in 1.2.2
 
 **English** — Fix: MemoryButler kept burning 12–19% CPU with its panel closed. The panel's views stay alive after it closes, so the pulsing "supervision" dot (a repeat-forever animation, present since 1.1.3) and the gauge transition kept re-laying out at the display refresh rate — 144 times a second on a high-refresh monitor. Animations and timers now pause whenever the panel is not visible, and the pulse runs at 12 fps when it is. Idle CPU is now ~0%.

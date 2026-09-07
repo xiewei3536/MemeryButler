@@ -73,40 +73,9 @@ struct OverviewView: View {
 
     private var insightRow: some View {
         let insight = HealthInsight.from(monitor.current)
-        return HStack(alignment: .top, spacing: 8) {
-            Image(systemName: insight.symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(insight.level.color)
-                .frame(width: 18)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(insight.title)
-                    .font(.system(size: 12, weight: .medium))
-                if let advice = insight.advice {
-                    Text(advice)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button(action: showApps) {
-                        HStack(spacing: 2) {
-                            Text(L("insight.seeApps"))
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 8, weight: .semibold))
-                        }
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(Theme.series)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(insight.level.color.opacity(insight == .healthy ? 0.08 : 0.13))
+        return InsightCard(
+            symbol: insight.symbol, level: insight.level, title: insight.title, advice: insight.advice,
+            actionTitle: insight.advice == nil ? nil : L("insight.seeApps"), action: showApps
         )
         .animation(.easeInOut(duration: 0.3), value: insight)
     }

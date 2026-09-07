@@ -1,12 +1,13 @@
 import SwiftUI
 
 enum PopoverTab: CaseIterable {
-    case overview, apps, settings, history
+    case overview, apps, system, settings, history
 
     var title: String {
         switch self {
         case .overview: return L("tab.overview")
         case .apps:     return L("tab.apps")
+        case .system:   return L("tab.system")
         case .settings: return L("tab.settings")
         case .history:  return L("tab.history")
         }
@@ -35,6 +36,7 @@ struct PopoverView: View {
             switch tab {
             case .overview: OverviewView(showApps: { tab = .apps })
             case .apps:     AppsView()
+            case .system:   SystemView()
             case .settings: SettingsView()
             case .history:  HistoryView()
             }

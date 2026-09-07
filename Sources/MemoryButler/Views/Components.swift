@@ -176,3 +176,55 @@ struct SettingRow<Content: View>: View {
         }
     }
 }
+
+// MARK: - 白話判讀卡（總覽／系統分頁共用）
+
+struct InsightCard: View {
+    let symbol: String
+    let level: PressureLevel
+    let title: String
+    var advice: String? = nil
+    var actionTitle: String? = nil
+    var action: () -> Void = {}
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(level.color)
+                .frame(width: 18)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                if let advice {
+                    Text(advice)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let actionTitle {
+                    Button(action: action) {
+                        HStack(spacing: 2) {
+                            Text(actionTitle)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                        }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Theme.series)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(level.color.opacity(level == .normal ? 0.08 : 0.13))
+        )
+    }
+}
+

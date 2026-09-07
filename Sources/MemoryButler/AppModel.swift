@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     let autopilot: AutoPilot
     let updater: Updater
     let apps = AppUsageModel()
+    let system = SystemMonitor()
     let panel = PanelState()
 
     private init() {

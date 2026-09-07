@@ -97,15 +97,16 @@ enum MemoryReader {
         return UInt64(s.compressor_page_count) &* pageSize
     }
 
-    /// 本程序的實體佔用（與「活動監視器」的「記憶體」欄位同口徑）
-    static func footprint(of pid: pid_t) -> UInt64? {
+    /// 單一程序的實體佔用（與「活動監視器」的「記憶體」欄位同口徑）與累計 CPU 時間（mach 絕對時間單位）
+    static func usage(of pid: pid_t) -> (footprint: UInt64, cpuTime: UInt64)? {
         var info = rusage_info_v4()
         let rc = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
             ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
                 proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
             }
         }
-        return rc == 0 ? info.ri_phys_footprint : nil
+        guard rc == 0 else { return nil }
+        return (info.ri_phys_footprint, info.ri_user_time &+ info.ri_system_time)
     }
 
     static func sample() -> MemorySample {
@@ -216,6 +217,13 @@ enum Fmt {
 
     static func percent(_ fraction: Double) -> String {
         "\(Int((fraction * 100).rounded()))%"
+    }
+
+    /// 開機時間這類長度：「3 天 4 小時」或「6 小時 20 分」
+    static func duration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        let days = total / 86400, hours = (total % 86400) / 3600, minutes = (total % 3600) / 60
+        return days > 0 ? LF("fmt.daysHours", days, hours) : LF("fmt.hoursMinutes", hours, minutes)
     }
 
     static let time: DateFormatter = {

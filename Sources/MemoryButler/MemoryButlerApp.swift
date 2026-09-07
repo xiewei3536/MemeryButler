@@ -50,7 +50,23 @@ enum SelfTest {
             print("[selftest]   \(Fmt.bytes(o.footprint))  \(o.processCount) proc  [\(o.name)]")
         }
 
-        // MEMORYBUTLER_SNAPSHOT_DIR=/path → 把四個分頁離屏渲染成 PNG（不需螢幕錄製權限即可檢視畫面）
+        await model.system.refresh()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        await model.system.refresh()
+        await model.apps.refresh()   // 第二次掃描才有 CPU%
+        if let sys = model.system.current {
+            print("[selftest] system: cpu=\(sys.cpuUsage.map { Fmt.percent($0) } ?? "-") temp=\(sys.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? "-") "
+                  + "cpuPower=\(sys.cpuPower.map { String(format: "%.1fW", $0) } ?? "-") sysPower=\(sys.systemPower.map { String(format: "%.1fW", $0) } ?? "-") "
+                  + "fan=\(sys.fanRPM.map { "\(Int($0))rpm" } ?? "-")x\(sys.fanCount) thermalLevel=\(sys.thermalLevel.map(String.init) ?? "-") "
+                  + "speedLimit=\(sys.cpuSpeedLimit.map(String.init) ?? "-") state=\(sys.thermalState.rawValue) "
+                  + "battery=\(sys.battery.map { "\(Int(($0.healthFraction ?? 0) * 100))%/\($0.cycleCount)cyc" } ?? "-") "
+                  + "displays=\(sys.displays.map { "\($0.width)x\($0.height)@\(Int($0.refreshRate))" }) agents=\(sys.thirdPartyAgents) insight=\(SystemInsight.from(sys))")
+        }
+        for r in model.apps.rows.prefix(3) {
+            print("[selftest]   cpu \(r.cpuFraction.map { String(format: "%.0f%%", $0 * 100) } ?? "-")  \(r.name)")
+        }
+
+        // MEMORYBUTLER_SNAPSHOT_DIR=/path → 把每個分頁離屏渲染成 PNG（不需螢幕錄製權限即可檢視畫面）
         if let dir = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DIR"], !dir.isEmpty {
             renderSnapshots(to: dir)
         }

@@ -39,6 +39,16 @@ struct AppsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
+            // 依記憶體或 CPU 排序：燒記憶體和燒 CPU 的常常不是同一個
+            Picker("", selection: $usage.sortKey) {
+                Text(L("apps.sort.memory")).tag(AppUsageModel.SortKey.memory)
+                Text(L("apps.sort.cpu")).tag(AppUsageModel.SortKey.cpu)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.mini)
+            .labelsHidden()
+            .fixedSize()
+            .help(L("help.apps.sort"))
         }
     }
 
@@ -102,7 +112,8 @@ struct AppRowsView: View {
                         }
                     }
                     .frame(height: 4)
-                    Text(LF("apps.processes", r.processCount))
+                    Text(LF("apps.processes", r.processCount)
+                         + (r.cpuFraction.map { " · " + LF("apps.cpu", Int(($0 * 100).rounded())) } ?? ""))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
