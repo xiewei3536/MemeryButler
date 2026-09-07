@@ -18,9 +18,9 @@ struct AppsView: View {
             }
         }
         .task {
-            // 分頁可見時每 4 秒刷新；切走或關閉面板即自動取消
+            // 每 4 秒刷新一次；面板關著（視圖仍活著）時跳過，不做沒人看的掃描
             while !Task.isCancelled {
-                await usage.refresh()
+                if AppModel.shared.panel.isVisible || !usage.hasScanned { await usage.refresh() }
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
             }
         }

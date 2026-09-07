@@ -10,6 +10,7 @@ struct OverviewView: View {
     @ObservedObject private var autopilot = AppModel.shared.autopilot
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater
+    @ObservedObject private var panel = AppModel.shared.panel
 
     init(showApps: @escaping () -> Void = {}) {
         self.showApps = showApps
@@ -174,18 +175,28 @@ struct OverviewView: View {
         }
     }
 
+    @ViewBuilder
     private var cooldownBadge: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            let remaining = autopilot.cooldownRemaining
-            if remaining > 0 {
-                let t = "\(Int(remaining) / 60):\(String(format: "%02d", Int(remaining) % 60))"
-                Text(LF("auto.cooldown", t))
-                    .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(Capsule().fill(Color.primary.opacity(0.07)))
-            }
+        // 面板看不見時不需要每秒重算倒數
+        if panel.isVisible {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in cooldownLabel }
+        } else {
+            cooldownLabel
+        }
+    }
+
+    @ViewBuilder
+    private var cooldownLabel: some View {
+        let remaining = autopilot.cooldownRemaining
+        if remaining > 0 {
+            let t = "\(Int(remaining) / 60):\(String(format: "%02d", Int(remaining) % 60))"
+            Text(LF("auto.cooldown", t))
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.primary.opacity(0.07)))
         }
     }
 }

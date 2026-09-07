@@ -41,8 +41,11 @@ struct GaugeRing: View {
     let level: PressureLevel
     let centerTitle: String       // 大字（墨色，不用序列色）
     let centerSubtitle: String
+    @ObservedObject private var panel = AppModel.shared.panel
 
     private let lineWidth: CGFloat = 11
+    /// 面板看不見時不做過場動畫（每 2 秒一次 0.5 秒的動畫在隱藏狀態下純粹燒 CPU）
+    private var transition: Animation? { panel.isVisible ? .easeOut(duration: 0.5) : nil }
 
     var body: some View {
         ZStack {
@@ -55,8 +58,8 @@ struct GaugeRing: View {
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.easeOut(duration: 0.5), value: fraction)
-                .animation(.easeOut(duration: 0.5), value: level)
+                .animation(transition, value: fraction)
+                .animation(transition, value: level)
 
             VStack(spacing: 1) {
                 Text(centerTitle)
@@ -135,15 +138,19 @@ struct SwitchToggle: View {
 
 struct PulsingDot: View {
     let color: Color
-    @State private var on = false
+    @ObservedObject private var panel = AppModel.shared.panel
 
     var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 6, height: 6)
-            .opacity(on ? 1.0 : 0.3)
-            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: on)
-            .onAppear { on = true }
+        // 用 12fps 的 TimelineView 取代 repeatForever 隱式動畫：
+        // 後者在 144Hz 螢幕上每秒重排版 144 次，且面板關著時仍持續；這裡隱藏時完全暫停
+        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: !panel.isVisible)) { ctx in
+            let phase = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.2) / 2.2
+            let wave = 0.5 - 0.5 * cos(phase * 2 * .pi)          // 0 → 1 → 0，平滑呼吸
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+                .opacity(0.3 + 0.7 * wave)
+        }
     }
 }
 

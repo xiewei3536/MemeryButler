@@ -18,7 +18,7 @@ if git diff-index --quiet HEAD -- 2>/dev/null; then
 fi
 VERSION="${VERSION:-${TAG_VERSION}}"
 VERSION="${VERSION#v}"
-VERSION="${VERSION:-1.2.1}"
+VERSION="${VERSION:-1.2.2}"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 echo "▸ 版本 $VERSION (build $BUILD_NUMBER)"
 

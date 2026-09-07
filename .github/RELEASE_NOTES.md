@@ -1,3 +1,13 @@
+## What's new in 1.2.2
+
+**English** — Fix: MemoryButler kept burning 12–19% CPU with its panel closed. The panel's views stay alive after it closes, so the pulsing "supervision" dot (a repeat-forever animation, present since 1.1.3) and the gauge transition kept re-laying out at the display refresh rate — 144 times a second on a high-refresh monitor. Animations and timers now pause whenever the panel is not visible, and the pulse runs at 12 fps when it is. Idle CPU is now ~0%.
+
+**简体中文** — 修复：面板关着时内存管家仍占用 12–19% CPU。面板关闭后其视图仍然存活，「监督中」的呼吸灯（1.1.3 起的 repeat-forever 动画）和仪表环过场动画会按屏幕刷新率持续重排版，在高刷屏上每秒 144 次。现在面板不可见时所有动画与计时器暂停，可见时呼吸灯以 12 fps 运行，空闲 CPU 约为 0%。
+
+**繁體中文** — 修正：面板關著時記憶體管家仍佈用 12～19% CPU。面板關閉後其視圖仍然活著，「監督中」的呼吸燈（1.1.3 起的 repeat-forever 動畫）與儀表環過場動畫會依螢幕更新率持續重排版，高更新率螢幕上每秒 144 次。現在面板不可見時所有動畫與計時器暫停，可見時呼吸燈以 12 fps 運行，閒置 CPU 約為 0%。
+
+---
+
 ## What's new in 1.2.1
 
 **English** — Fix: the Apps and History tabs collapsed to a single row (ScrollView inside a self-sizing menu bar panel). The panel now adapts to its content: the Apps list and short histories expand fully, long histories scroll at a fixed height, and Settings is as tall as Overview. Shorter "stopped early" notes in History so they no longer truncate.
