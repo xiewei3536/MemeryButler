@@ -61,6 +61,7 @@ struct GaugeRing: View {
             VStack(spacing: 1) {
                 Text(centerTitle)
                     .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .monospacedDigit()   // 數字跳動時寬度不抖
                     .foregroundStyle(.primary)
                 Text(centerSubtitle)
                     .font(.system(size: 11))
@@ -76,6 +77,7 @@ struct StatTile: View {
     let title: String
     let value: String
     let symbol: String
+    var help: String? = nil       // 懸停說明：把術語翻成白話
 
     var body: some View {
         HStack(spacing: 8) {
@@ -89,6 +91,7 @@ struct StatTile: View {
                     .foregroundStyle(.secondary)
                 Text(value)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundStyle(.primary)
             }
             Spacer(minLength: 0)
@@ -99,6 +102,32 @@ struct StatTile: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.05))
         )
+        .help(help ?? title)
+    }
+}
+
+// MARK: - 開關（帶可存取性標籤）
+//
+// Toggle("") + labelsHidden 會讓螢幕閱讀器唸不出這是哪個設定；
+// 這裡把標題交給 Toggle 當 accessibility label，視覺上仍只顯示開關本體。
+
+struct SwitchToggle: View {
+    let title: String
+    @Binding var isOn: Bool
+    var size: ControlSize = .small
+
+    init(_ title: String, isOn: Binding<Bool>, size: ControlSize = .small) {
+        self.title = title
+        self._isOn = isOn
+        self.size = size
+    }
+
+    var body: some View {
+        Toggle(title, isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(size)
+            .labelsHidden()
+            .accessibilityLabel(title)
     }
 }
 

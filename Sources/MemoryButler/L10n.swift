@@ -149,6 +149,57 @@ enum L10n {
         "hist.total":       ["Total Freed", "累计释放", "累計釋放"],
         "hist.count":       ["Times", "次数", "次數"],
         "hist.clear":       ["Clear History", "清除记录", "清除紀錄"],
+        "hist.clear.confirm": ["Clear all? Click again", "确定清除？再点一次", "確定清除？再按一次"],
+        "hist.note.swap":     ["stopped early to avoid swapping", "提前停止，避免写入磁盘", "提早停止，避免寫入磁碟"],
+        "hist.note.critical": ["stopped early — critical pressure", "提前停止，压力临界", "提早停止，壓力緊繃"],
+        "hist.note.thermal":  ["stopped early — Mac running hot", "提前停止，温度偏高", "提早停止，溫度偏高"],
+
+        // App 分頁（誰在佔用記憶體）
+        "tab.apps":        ["Apps", "应用", "App"],
+        "apps.title":      ["Who's using memory", "谁在占用内存", "誰在佔用記憶體"],
+        "apps.sub":        ["Helpers grouped under their app · same figures as Activity Monitor", "辅助进程已归入所属 App · 与「活动监视器」口径相同", "輔助程序已歸入所屬 App · 與「活動監視器」口徑相同"],
+        "apps.scanning":   ["Scanning…", "正在扫描…", "正在掃描…"],
+        "apps.processes":  ["%d processes", "%d 个进程", "%d 個程序"],
+        "apps.other":      ["Background & system processes", "后台与系统进程", "背景與系統程序"],
+        "apps.quit":       ["Quit", "退出", "結束"],
+        "apps.confirmQuit": ["Quit now", "确定退出", "確定結束"],
+        "apps.cancel":     ["Cancel", "取消", "取消"],
+        "apps.quit.help":  ["Same as pressing ⌘Q in that app — it will ask before losing unsaved work", "相当于在该 App 中按 ⌘Q，未保存的内容会由它提示保存", "相當於在該 App 中按 ⌘Q，未儲存的內容會由它提示儲存"],
+        "apps.self":       ["MemoryButler itself uses %@", "内存管家自身占用 %@", "記憶體管家自身佔用 %@"],
+
+        // 白話健康判讀
+        "insight.healthy":            ["Memory is comfortable — everything's smooth", "内存充足，运行顺畅", "記憶體充足，運作順暢"],
+        "insight.compressing.title":  ["Memory is getting tight", "内存开始吃紧", "記憶體開始吃緊"],
+        "insight.compressing.advice": ["macOS is compressing memory to keep up. Quitting idle apps helps the most.", "系统正靠压缩内存撑着，关闭闲置 App 最有帮助。", "系統正靠壓縮記憶體撐著，關閉閒置 App 最有幫助。"],
+        "insight.swapping.title":     ["Out of memory — using the disk instead", "内存不足，已在用磁盘顶替", "記憶體不夠，已在用磁碟頂替"],
+        "insight.swapping.advice":    ["This is why things feel slow. Quitting the biggest apps is the real fix — freeing can't help here.", "这就是变卡的原因。关掉最耗内存的 App 才是真正的解法，释放帮不上忙。", "這就是變卡的原因。關掉最耗記憶體的 App 才是真正的解法，釋放幫不上忙。"],
+        "insight.critical.title":     ["Memory is critically low", "内存极度紧张", "記憶體極度緊繃"],
+        "insight.critical.advice":    ["Quit a few apps right now.", "请立即关闭几个 App。", "請立即關閉幾個 App。"],
+        "insight.seeApps":            ["See which apps", "看看是哪些 App", "看看是哪些 App"],
+
+        // 自動決策（1.2 新增）
+        "decision.thermal":     ["Mac is running hot — auto-free paused", "Mac 温度偏高，暂停自动释放", "Mac 溫度偏高，暫停自動釋放"],
+        "decision.swapLimited": ["Freed %@ (cache only) — memory is truly full; quitting apps is what helps", "已释放 %@（仅缓存）——内存确实不够，关闭 App 才有效", "已釋放 %@（僅快取）——記憶體確實不夠，關閉 App 才有效"],
+
+        // 懸停說明：把術語翻成白話
+        "help.pressure":   ["macOS's own verdict on how tight memory is right now", "系统自己对当前内存紧张程度的判断", "系統自己對目前記憶體吃緊程度的判斷"],
+        "help.available":  ["What apps can still grab right now, including cache that macOS would give up instantly", "App 现在还能立刻取用的内存，包含系统随时可让出的缓存", "App 現在還能立刻取用的記憶體，包含系統隨時可讓出的快取"],
+        "help.swap":       ["Memory parked on disk. Large and growing means RAM ran out — that's what makes a Mac feel slow", "被搬到磁盘上的内存。数值大且持续增加 = 内存不够了，这正是变慢的原因", "被搬到磁碟上的記憶體。數值大且持續增加＝記憶體不夠了，這正是變慢的原因"],
+        "help.app":        ["Memory used by apps and their windows", "App 及其窗口正在使用的内存", "App 及其視窗正在使用的記憶體"],
+        "help.wired":      ["Reserved by macOS itself; can't be freed", "系统内核保留，无法释放", "系統核心保留，無法釋放"],
+        "help.compressed": ["Idle memory macOS squeezed to make room; costs a little CPU to unpack when needed", "系统压缩起来腾空间的闲置内存，取用时需解压", "系統壓縮起來騰空間的閒置記憶體，取用時需稍微解壓"],
+        "help.cached":     ["Recently used files kept in RAM for speed; handed back instantly when needed", "为加速而留在内存中的文件，需要时即刻让出", "為加速而留在記憶體中的檔案，需要時即刻讓出"],
+        "help.release":    ["Nudges macOS to drop caches and compress idle apps. Stops the moment anything would be written to disk, and declines outright when it can't help.", "促使系统清掉缓存、压缩闲置 App；一旦要写入磁盘就自动停止，帮不上忙时会直接说明。", "促使系統清掉快取、壓縮閒置 App；一旦要寫入磁碟就自動停止，幫不上忙時會直接說明。"],
+        "footer.quit.help": ["Quit MemoryButler (⌘Q)", "退出内存管家（⌘Q）", "結束記憶體管家（⌘Q）"],
+
+        // 起跑前判定出手無益（按鈕短句 + 自動決策說明）
+        "btn.skipped.compressorFull": ["Freeing won't help now — quit apps instead", "此刻释放无效，请改为关闭 App", "此刻釋放無效，請改關閉 App"],
+        "btn.skipped.swapping":       ["Mac is swapping right now — not adding pressure", "系统正在写入磁盘，先不施压", "系統正在寫入磁碟，先不施壓"],
+        "btn.skipped.critical":       ["Memory is critical — freeing would make it worse", "内存已临界，释放只会更糟", "記憶體已緊繃，釋放只會更糟"],
+        "decision.skip.compressor": ["Freeing can't help now — it would only push apps to disk. Quitting apps is what helps.", "此刻释放帮不上忙，再施压只会把 App 写进磁盘；关闭 App 才有效", "此刻釋放幫不上忙，再施壓只會把 App 寫進磁碟；關閉 App 才有效"],
+        "decision.skip.swapping":   ["Mac is swapping right now — the butler stays out of the way", "系统正在写入磁盘，管家不添乱", "系統正在寫入磁碟，管家不添亂"],
+        "decision.skip.critical":   ["Pressure is critical — adding ballast would hurt; quit some apps", "压力已临界，此时施压只会更糟，请关闭几个 App", "壓力已緊繃，此時施壓只會更糟，請關閉幾個 App"],
+        "hist.note.compressor":     ["stopped early — one compression pass is enough", "提前停止，压缩一轮即止", "提早停止，壓縮一輪即止"],
     ]
 }
 

@@ -142,19 +142,24 @@ final class Updater: ObservableObject {
                 .appendingPathComponent("MemoryButler-update.dmg")
             try? FileManager.default.removeItem(at: tmp)
 
-            let (bytes, response) = try await URLSession.shared.bytes(from: url)
-            let total = response.expectedContentLength
-            var data = Data()
-            if total > 0 { data.reserveCapacity(Int(total)) }
-            var received: Int64 = 0
-            for try await byte in bytes {
-                data.append(byte)
-                received += 1
-                if total > 0, received % 131_072 == 0 {
-                    status = .downloading(Double(received) / Double(total))
+            // 交給系統的下載工作：背景寫檔、委派回報進度，主執行緒完全不碰資料流
+            //（舊作法逐位元組 for-await 在主執行緒迭代，下載期間整個面板會卡頓）
+            let progress = DownloadProgress(destination: tmp) { [weak self] fraction in
+                Task { @MainActor [weak self] in
+                    guard let self, case .downloading = self.status else { return }
+                    self.status = .downloading(fraction)
                 }
             }
-            try data.write(to: tmp)
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 60
+            let (fileURL, response) = try await URLSession.shared.download(for: req, delegate: progress)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw UpdateError.badResponse(http.statusCode)
+            }
+            // 委派通常已把檔案搬到 tmp；若沒有（系統行為差異），這裡再搬一次
+            if !FileManager.default.fileExists(atPath: tmp.path) {
+                try FileManager.default.moveItem(at: fileURL, to: tmp)
+            }
 
             status = .installing
             try await Self.install(dmg: tmp)
@@ -240,15 +245,43 @@ final class Updater: ObservableObject {
 
     enum UpdateError: LocalizedError {
         case dmgMissingApp
+        case badResponse(Int)
         case toolFailed(tool: String, output: String)
 
         var errorDescription: String? {
             switch self {
             case .dmgMissingApp:
                 return "DMG missing MemoryButler.app"
+            case .badResponse(let code):
+                return "HTTP \(code)"
             case .toolFailed(let tool, let output):
                 return "\(tool): \(String(output.suffix(120)))"
             }
         }
+    }
+}
+
+/// 下載進度委派：回報已寫入比例，並在完成當下就把檔案搬到目的地
+///（系統可能在 didFinishDownloadingTo 回傳後立即刪除暫存檔）
+private final class DownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let destination: URL
+    private let onProgress: (Double) -> Void
+
+    init(destination: URL, onProgress: @escaping (Double) -> Void) {
+        self.destination = destination
+        self.onProgress = onProgress
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
+                    totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        onProgress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+        try? FileManager.default.removeItem(at: destination)
+        try? FileManager.default.moveItem(at: location, to: destination)
     }
 }

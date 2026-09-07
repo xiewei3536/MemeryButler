@@ -1,33 +1,39 @@
 import SwiftUI
 
-struct PopoverView: View {
-    private enum Tab: CaseIterable {
-        case overview, settings, history
+enum PopoverTab: CaseIterable {
+    case overview, apps, settings, history
 
-        var title: String {
-            switch self {
-            case .overview: return L("tab.overview")
-            case .settings: return L("tab.settings")
-            case .history:  return L("tab.history")
-            }
+    var title: String {
+        switch self {
+        case .overview: return L("tab.overview")
+        case .apps:     return L("tab.apps")
+        case .settings: return L("tab.settings")
+        case .history:  return L("tab.history")
         }
     }
+}
 
-    @State private var tab: Tab = .overview
+struct PopoverView: View {
+    @State private var tab: PopoverTab
     @ObservedObject private var settings = AppModel.shared.settings
+
+    init(initialTab: PopoverTab = .overview) {
+        _tab = State(initialValue: initialTab)
+    }
 
     var body: some View {
         VStack(spacing: 10) {
             header
 
             Picker("", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.title).tag($0) }
+                ForEach(PopoverTab.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
 
             switch tab {
-            case .overview: OverviewView()
+            case .overview: OverviewView(showApps: { tab = .apps })
+            case .apps:     AppsView()
             case .settings: SettingsView()
             case .history:  HistoryView()
             }
@@ -73,6 +79,8 @@ struct PopoverView: View {
                 .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("q", modifiers: .command)   // 面板開著時 ⌘Q 也能結束
+            .help(L("footer.quit.help"))
         }
         .padding(.top, 2)
     }

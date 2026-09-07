@@ -25,8 +25,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 11) {
                 SettingRow(title: L("set.auto.title"),
                            subtitle: L("set.auto.sub")) {
-                    Toggle("", isOn: $settings.autoEnabled)
-                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                    SwitchToggle(L("set.auto.title"), isOn: $settings.autoEnabled)
                 }
 
                 Divider()
@@ -34,26 +33,24 @@ struct SettingsView: View {
                 Group {
                     SettingRow(title: L("set.pressure.title"),
                                subtitle: L("set.pressure.sub")) {
-                        Toggle("", isOn: $settings.triggerOnPressure)
-                            .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                        SwitchToggle(L("set.pressure.title"), isOn: $settings.triggerOnPressure)
                     }
 
                     SettingRow(title: L("set.threshold.title"),
                                subtitle: LF("set.threshold.sub", Int(settings.thresholdPercent))) {
-                        Toggle("", isOn: $settings.triggerOnThreshold)
-                            .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                        SwitchToggle(L("set.threshold.title"), isOn: $settings.triggerOnThreshold)
                     }
                     if settings.triggerOnThreshold {
                         Slider(value: $settings.thresholdPercent, in: 5...30, step: 1)
                             .controlSize(.small)
+                            .accessibilityLabel(L("set.threshold.title"))
                     }
 
                     SettingRow(title: L("set.schedule.title"),
                                subtitle: settings.scheduleEnabled
                                          ? LF("set.schedule.sub.on", settings.scheduleMinutes)
                                          : L("set.schedule.sub.off")) {
-                        Toggle("", isOn: $settings.scheduleEnabled)
-                            .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                        SwitchToggle(L("set.schedule.title"), isOn: $settings.scheduleEnabled)
                     }
                     if settings.scheduleEnabled {
                         Picker("", selection: $settings.scheduleMinutes) {
@@ -84,13 +81,13 @@ struct SettingsView: View {
                 }
                 Slider(value: $settings.cooldownMinutes, in: 5...60, step: 5)
                     .controlSize(.small)
+                    .accessibilityLabel(L("set.cooldown.title"))
 
                 Divider()
 
                 SettingRow(title: L("set.lowpower.title"),
                            subtitle: L("set.lowpower.sub")) {
-                    Toggle("", isOn: $settings.pauseOnLowPower)
-                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                    SwitchToggle(L("set.lowpower.title"), isOn: $settings.pauseOnLowPower)
                 }
             }
         }
@@ -102,19 +99,17 @@ struct SettingsView: View {
         Card {
             VStack(alignment: .leading, spacing: 11) {
                 SettingRow(title: L("set.menubar.title"), subtitle: nil) {
-                    Toggle("", isOn: $settings.showPercentInMenuBar)
-                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                    SwitchToggle(L("set.menubar.title"), isOn: $settings.showPercentInMenuBar)
                 }
 
                 Divider()
 
                 SettingRow(title: L("set.login.title"),
                            subtitle: L("set.login.sub")) {
-                    Toggle("", isOn: Binding(
+                    SwitchToggle(L("set.login.title"), isOn: Binding(
                         get: { settings.launchAtLogin },
                         set: { settings.setLaunchAtLogin($0) }
                     ))
-                    .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 }
 
                 Divider()
@@ -167,8 +162,7 @@ struct SettingsView: View {
                 Divider()
 
                 SettingRow(title: L("set.update.auto"), subtitle: nil) {
-                    Toggle("", isOn: $settings.autoUpdateCheck)
-                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                    SwitchToggle(L("set.update.auto"), isOn: $settings.autoUpdateCheck)
                 }
             }
         }

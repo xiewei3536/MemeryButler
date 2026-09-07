@@ -26,10 +26,12 @@ Macs with 8GB of RAM spend a lot of time swapping and compressing memory, and ev
 
 - 🧠 **Smart autonomous release** with three configurable triggers:
   1. **Kernel pressure signal** — reacts the instant macOS reports memory pressure
-  2. **Low-available threshold** — available memory below 12% (adjustable) for 30 seconds
+  2. **Low-available threshold** — available memory below 20% (adjustable) for 30 seconds
   3. **Schedule** — every 15 min to 2 hours, if you prefer a fixed rhythm
 - 📈 **Adaptive cooldown** — if a release reclaims little (system genuinely busy), it backs off automatically instead of thrashing; big wins restore the normal pace
-- 🔋 **Considerate guards** — pauses in Low Power Mode, brakes immediately at critical pressure, keeps a 300MB safety floor
+- 🛑 **Swap brake** — the release stops the instant swap usage starts to grow, so it only drops caches and compresses idle pages; it never pushes other apps to disk (that's what makes "memory cleaners" backfire). Also pauses in Low Power Mode, when the Mac is running hot, and brakes at critical pressure
+- 🔍 **Who's using memory** — an Apps tab lists the biggest apps (helper processes grouped under their app, same figures as Activity Monitor) with a two-click graceful Quit — on 8GB, closing the hog is the fix that actually works
+- 🩺 **Plain-language verdict** — one line tells you whether the Mac is smooth, compressing, or already living on disk, and what to do; hover any figure for an explanation
 - 🎛 **Polished native UI** — pressure ring gauge, App/Wired/Compressed/Cached breakdown, a live 5-minute usage chart with hover readout, and a full release history log
 - 📊 **Menu bar at a glance** — live usage percentage right in your menu bar
 - 🌐 **Multilingual UI** — English, Simplified Chinese, Traditional Chinese; switch instantly in-app or follow the system
@@ -45,7 +47,11 @@ Macs with 8GB of RAM spend a lot of time swapping and compressing memory, and ev
 
 ## How it works
 
-MemoryButler requests large amounts of anonymous memory from the kernel at a controlled rate and touches every page, which compels XNU to immediately reclaim idle pages, compress inactive apps, and drop purgeable caches. It then returns everything at once, leaving the system with far more genuinely free memory. Entirely root-free, with hard safety limits: a free-memory floor, a critical-pressure brake, and total/time caps.
+MemoryButler requests anonymous memory from the kernel at a controlled rate and touches every page (incompressible content, so the kernel can't just compress the ballast itself), which compels XNU to drop purgeable caches and compress idle pages of inactive apps. It then returns everything at once, leaving the system with more genuinely free memory. Entirely root-free, with hard safety limits, checked before every 64MB step: **swap growth → stop immediately** (the key one — on an already-swapping 8GB Mac, pushing further only writes other apps to disk), critical pressure → stop, thermal throttling → stop, plus total and time caps.
+
+Before it even starts, it checks whether the compressor pool already holds more than ~12% of RAM, whether swap is growing at that very moment, or whether pressure is already critical. If so, it **declines and says why** instead of pretending — measured on an 8GB Mac, that is exactly the state in which every "memory cleaner" makes things worse.
+
+Honest caveat: if your Mac is already living in swap, no release can fix that — only quitting apps can. MemoryButler tells you so, and shows you which ones.
 
 ## Build from source
 

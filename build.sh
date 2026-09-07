@@ -5,9 +5,22 @@ cd "$(dirname "$0")"
 
 APP="MemoryButler"
 DISPLAY_NAME="記憶體管家"
-VERSION="1.1.3"
 BUNDLE_ID="com.bowei.memorybutler"
 DIST="dist"
+
+# 版本號優先順序：環境變數 VERSION → 目前 commit 的 tag（CI 由 tag 觸發）→ 下方預設值。
+# 一定要與 release tag 一致：App 內建更新是用這個數字和 GitHub 最新 tag 比較，
+# 若打包出來的版本落後 tag，使用者會被「新版本可用」無限循環提示。
+# 只有在工作樹乾淨時才採用 tag（有未提交的修改就不是那個 release 了）
+TAG_VERSION=""
+if git diff-index --quiet HEAD -- 2>/dev/null; then
+    TAG_VERSION="$(git describe --tags --exact-match 2>/dev/null || true)"
+fi
+VERSION="${VERSION:-${TAG_VERSION}}"
+VERSION="${VERSION#v}"
+VERSION="${VERSION:-1.2.0}"
+BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+echo "▸ 版本 $VERSION (build $BUILD_NUMBER)"
 
 echo "▸ 編譯 Universal Binary (x86_64 + arm64)…"
 rm -rf "$DIST"
@@ -54,7 +67,7 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>$APP</string>
     <key>CFBundleDisplayName</key><string>$DISPLAY_NAME</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>

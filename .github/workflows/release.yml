@@ -15,6 +15,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build universal .app and .dmg
+        env:
+          # 由 tag 決定 App 版本號，確保與 release 一致（見 build.sh 說明）
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: ./build.sh
 
       - name: Verify universal binary

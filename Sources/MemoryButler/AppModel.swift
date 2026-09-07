@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     let settings: SettingsStore
     let autopilot: AutoPilot
     let updater: Updater
+    let apps = AppUsageModel()
 
     private init() {
         let monitor = MemoryMonitor()
@@ -28,7 +29,7 @@ final class AppModel: ObservableObject {
     func manualRelease() {
         guard !engine.isRunning else { return }
         Task {
-            if await engine.release(trigger: .manual) != nil {
+            if case .released = await engine.release(trigger: .manual) {
                 autopilot.noteManualRelease()
             }
         }

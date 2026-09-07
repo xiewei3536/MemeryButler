@@ -2,16 +2,24 @@ import SwiftUI
 import Charts
 
 struct OverviewView: View {
+    /// 健康判讀建議「看看是哪些 App」時，切到 App 分頁
+    var showApps: () -> Void
+
     @ObservedObject private var monitor = AppModel.shared.monitor
     @ObservedObject private var engine = AppModel.shared.engine
     @ObservedObject private var autopilot = AppModel.shared.autopilot
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater
 
+    init(showApps: @escaping () -> Void = {}) {
+        self.showApps = showApps
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             if updater.updateAvailable { UpdateBanner() }
             gaugeSection
+            insightRow
             tileGrid
             HistoryChartCard()
             ReleaseButton()
@@ -34,9 +42,12 @@ struct OverviewView: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 PressureChip(level: s.pressure)
+                    .help(L("help.pressure"))
                 summaryLine(title: L("sum.available"), value: Fmt.bytes(s.available), emphasized: true)
+                    .help(L("help.available"))
                 summaryLine(title: L("sum.total"), value: Fmt.bytes(s.total))
                 summaryLine(title: L("sum.swap"), value: Fmt.bytes(s.swapUsed))
+                    .help(L("help.swap"))
             }
             Spacer(minLength: 0)
         }
@@ -52,8 +63,51 @@ struct OverviewView: View {
                 .font(.system(size: emphasized ? 13 : 11.5,
                               weight: emphasized ? .semibold : .regular,
                               design: .rounded))
+                .monospacedDigit()
                 .foregroundStyle(.primary)
         }
+    }
+
+    // MARK: 白話健康判讀（一句話說現在順不順、該做什麼）
+
+    private var insightRow: some View {
+        let insight = HealthInsight.from(monitor.current)
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: insight.symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(insight.level.color)
+                .frame(width: 18)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(insight.title)
+                    .font(.system(size: 12, weight: .medium))
+                if let advice = insight.advice {
+                    Text(advice)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(action: showApps) {
+                        HStack(spacing: 2) {
+                            Text(L("insight.seeApps"))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                        }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Theme.series)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(insight.level.color.opacity(insight == .healthy ? 0.08 : 0.13))
+        )
+        .animation(.easeInOut(duration: 0.3), value: insight)
     }
 
     // MARK: 四格統計
@@ -62,10 +116,14 @@ struct OverviewView: View {
         let s = monitor.current
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
                          spacing: 8) {
-            StatTile(title: L("tile.app"), value: Fmt.bytes(s.appMemory), symbol: "square.grid.2x2")
-            StatTile(title: L("tile.wired"), value: Fmt.bytes(s.wired), symbol: "lock")
-            StatTile(title: L("tile.compressed"), value: Fmt.bytes(s.compressed), symbol: "archivebox")
-            StatTile(title: L("tile.cached"), value: Fmt.bytes(s.cached), symbol: "internaldrive")
+            StatTile(title: L("tile.app"), value: Fmt.bytes(s.appMemory), symbol: "square.grid.2x2",
+                     help: L("help.app"))
+            StatTile(title: L("tile.wired"), value: Fmt.bytes(s.wired), symbol: "lock",
+                     help: L("help.wired"))
+            StatTile(title: L("tile.compressed"), value: Fmt.bytes(s.compressed), symbol: "archivebox",
+                     help: L("help.compressed"))
+            StatTile(title: L("tile.cached"), value: Fmt.bytes(s.cached), symbol: "internaldrive",
+                     help: L("help.cached"))
         }
     }
 
@@ -111,10 +169,7 @@ struct OverviewView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                Toggle("", isOn: $settings.autoEnabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .labelsHidden()
+                SwitchToggle(L("set.auto.title"), isOn: $settings.autoEnabled, size: .mini)
             }
         }
     }
@@ -236,6 +291,7 @@ struct HistoryChartCard: View {
                 .foregroundStyle(.tertiary)
             Text(Fmt.percent(s.usedFraction))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
                 .foregroundStyle(.primary)
         }
     }
@@ -320,6 +376,7 @@ struct ReleaseButton: View {
         }
         .buttonStyle(.plain)
         .disabled(engine.isRunning)
+        .help(L("help.release"))
         .animation(.easeInOut(duration: 0.25), value: engine.state)
     }
 
@@ -327,6 +384,8 @@ struct ReleaseButton: View {
         switch engine.state {
         case .done:
             return AnyShapeStyle(Color(nsColor: .systemGreen))
+        case .skipped:
+            return AnyShapeStyle(Color(nsColor: .systemOrange))
         default:
             return AnyShapeStyle(Theme.accentGradient)
         }
@@ -360,7 +419,20 @@ struct ReleaseButton: View {
                      ? LF("btn.freed", Fmt.bytes(reclaimed))
                      : L("btn.tidied"))
                     .font(.system(size: 13.5, weight: .semibold))
+                    .monospacedDigit()
             }
+        case .skipped(let why):
+            // 老實說：此刻出手只會害到使用者，所以管家不做
+            HStack(spacing: 7) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(L("btn.skipped.\(why.rawValue)"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.horizontal, 12)
         }
     }
 }

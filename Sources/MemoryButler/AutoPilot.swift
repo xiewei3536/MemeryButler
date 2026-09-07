@@ -99,6 +99,15 @@ final class AutoPilot: ObservableObject {
             return
         }
 
+        // 過熱守門：風扇已經在狂轉，別再添柴（手動釋放不受此限）
+        switch ProcessInfo.processInfo.thermalState {
+        case .serious, .critical:
+            decide(L("decision.thermal"))
+            return
+        default:
+            break
+        }
+
         // 冷卻守門
         guard Date() >= nextAllowedAt else {
             let m = Int(ceil(cooldownRemaining / 60))
@@ -111,19 +120,42 @@ final class AutoPilot: ObservableObject {
 
         Task { [weak self] in
             guard let self else { return }
-            let event = await self.engine.release(trigger: trigger)
-            self.applyAdaptiveCooldown(after: event)
+            let outcome = await self.engine.release(trigger: trigger)
+            self.applyAdaptiveCooldown(after: outcome)
         }
     }
 
     /// 自適應冷卻：釋放 < 200MB 表示系統本來就緊，加倍退避；
-    /// 釋放 > 1GB 表示很有效，回復正常節奏。
-    private func applyAdaptiveCooldown(after event: ReleaseEvent?) {
-        guard let event else { return }
+    /// 釋放 > 1GB 表示很有效，回復正常節奏；
+    /// 因交換空間成長而煞車 = 記憶體真的不夠，再擠也只是寫磁碟，加倍退避並提醒關 App。
+    private func applyAdaptiveCooldown(after outcome: ReleaseOutcome) {
+        let event: ReleaseEvent
+        switch outcome {
+        case .busy:
+            return
+        case .skipped(let why):
+            // 出手也沒用：拉長冷卻避免每 2 秒空轉，並直說只有關 App 有用
+            backoffMultiplier = min(4.0, backoffMultiplier * 2)
+            switch why {
+            case .compressorFull: decide(L("decision.skip.compressor"))
+            case .swapping:       decide(L("decision.skip.swapping"))
+            case .critical:       decide(L("decision.skip.critical"))
+            }
+            nextAllowedAt = Date().addingTimeInterval(settings.cooldownMinutes * 60 * backoffMultiplier)
+            return
+        case .released(let e):
+            event = e
+        }
         // 連一塊壓載都吃不進去 = 系統忙到無法協助,2 分鐘後短冷卻重試(不算失敗)
-        if (event.ballast ?? 0) < (128 << 20) {
+        if (event.ballast ?? 0) < (64 << 20) {
             decide(L("decision.tooTight"))
             nextAllowedAt = Date().addingTimeInterval(120)
+            return
+        }
+        if event.stopReason == .swapGrowth {
+            backoffMultiplier = min(4.0, backoffMultiplier * 2)
+            decide(LF("decision.swapLimited", Fmt.bytes(event.reclaimed)))
+            nextAllowedAt = Date().addingTimeInterval(settings.cooldownMinutes * 60 * backoffMultiplier)
             return
         }
         if event.reclaimed < (200 << 20) {

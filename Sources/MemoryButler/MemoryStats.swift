@@ -88,6 +88,26 @@ enum MemoryReader {
         return UInt64(s.free_count) &* pageSize
     }
 
+    /// 交換空間已用位元組數（釋放引擎的煞車依據，sysctl 讀取極快）
+    static func swapUsedBytes() -> UInt64 { swapUsage().xsu_used }
+
+    /// 壓縮池目前佈用的位元組數（釋放引擎的煞車依據）
+    static func compressedBytes() -> UInt64 {
+        guard let s = vmStatistics() else { return 0 }
+        return UInt64(s.compressor_page_count) &* pageSize
+    }
+
+    /// 本程序的實體佔用（與「活動監視器」的「記憶體」欄位同口徑）
+    static func footprint(of pid: pid_t) -> UInt64? {
+        var info = rusage_info_v4()
+        let rc = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
+            ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
+            }
+        }
+        return rc == 0 ? info.ri_phys_footprint : nil
+    }
+
     static func sample() -> MemorySample {
         let total = ProcessInfo.processInfo.physicalMemory
         guard let s = vmStatistics() else {
@@ -116,6 +136,69 @@ enum MemoryReader {
             swapUsed: swapUsage().xsu_used,
             pressure: pressureLevel()
         )
+    }
+}
+
+// MARK: - 白話健康判讀
+//
+// 把數字翻成「現在順不順、該做什麼」。這裡的門檻是經驗法則，不追求精確，
+// 重點是給一般使用者一句聽得懂、做得到的建議。
+
+enum HealthInsight: Equatable {
+    case healthy        // 記憶體充足
+    case compressing    // 靠壓縮撐著：開始吃緊
+    case swapping       // 已在用磁碟頂替：這才是變卡的主因
+    case critical       // 極度緊繃
+
+    static func from(_ s: MemorySample) -> HealthInsight {
+        guard s.total > 0 else { return .healthy }
+        if s.pressure == .critical { return .critical }
+        let tightNow  = s.pressure == .warning || s.compressed >= s.total / 5   // 8GB：壓縮 ≥ 1.6GB
+        let heavySwap = s.swapUsed >= s.total / 4                                // 8GB：swap ≥ 2GB
+        let someSwap  = s.swapUsed >= s.total / 8                                // 8GB：swap ≥ 1GB
+        // swap 很大 = 工作集早已超過實體記憶體，就算此刻 free 很多（例如剛釋放完），
+        // 切回那些被換出的 App 還是會卡；這時不能報「順暢」，要老實說只有關 App 有用
+        if heavySwap || (someSwap && tightNow) { return .swapping }
+        if tightNow { return .compressing }
+        return .healthy
+    }
+
+    var title: String {
+        switch self {
+        case .healthy:     return L("insight.healthy")
+        case .compressing: return L("insight.compressing.title")
+        case .swapping:    return L("insight.swapping.title")
+        case .critical:    return L("insight.critical.title")
+        }
+    }
+
+    /// 給使用者的一句話建議（充足時不囉唆）
+    var advice: String? {
+        switch self {
+        case .healthy:     return nil
+        case .compressing: return L("insight.compressing.advice")
+        case .swapping:    return L("insight.swapping.advice")
+        case .critical:    return L("insight.critical.advice")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .healthy:     return "checkmark.seal.fill"
+        case .compressing: return "arrow.down.right.and.arrow.up.left"
+        case .swapping:    return "externaldrive.fill.badge.exclamationmark"
+        case .critical:    return "exclamationmark.octagon.fill"
+        }
+    }
+
+    /// 對應的壓力等級色（沿用系統色，亮/暗模式自動適配）
+    var level: PressureLevel {
+        switch self {
+        case .healthy:     return .normal
+        case .compressing: return .warning
+        case .swapping:    return .warning
+        case .critical:    return .critical
+        }
     }
 }
 
