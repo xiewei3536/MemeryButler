@@ -31,6 +31,7 @@ struct PopoverView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
+            // 各分頁自行決定高度（見 Layout 的說明）：視窗跟著內容長短自適應
             switch tab {
             case .overview: OverviewView(showApps: { tab = .apps })
             case .apps:     AppsView()

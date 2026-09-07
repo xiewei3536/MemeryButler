@@ -62,6 +62,19 @@ enum AppInfo {
     static let licenseURL = URL(string: "https://github.com/xiewei3536/MemeryButler/blob/main/LICENSE")!
 }
 
+enum Layout {
+    // 選單列面板是「依內容自動調整大小」的視窗，而 ScrollView 的理想高度接近零：
+    // 直接放 ScrollView 會被壓扁到只剩一列。原則：內容少就讓視窗跟著縮短（不用 ScrollView），
+    // 內容多才固定在上限並捲動。上限取總覽分頁的自然高度，切分頁時視窗才不會大跳。
+
+    /// 紀錄分頁：不超過這個筆數就直接展開，超過才捲動
+    static let historyInlineRows = 8
+    /// 紀錄分頁捲動時的列表高度（約 8 列）
+    static let historyListHeight: CGFloat = 400
+    /// 設定分頁的高度（內容一定超過一頁，固定為與總覽相近的高度捲動）
+    static let settingsHeight: CGFloat = 544
+}
+
 enum Theme {
     /// 單一資料序列用色（唯一序列，不與其他類別色相鄰）
     static let series = Color(nsColor: .systemBlue)

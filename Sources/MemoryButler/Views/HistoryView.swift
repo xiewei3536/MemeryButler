@@ -94,9 +94,21 @@ struct HistoryView: View {
         }
     }
 
+    /// 筆數少就直接展開（視窗跟著變短），多了才固定高度捲動——面板會依內容自動調整大小，
+    /// 直接放 ScrollView 會被壓扁到只剩一列
+    @ViewBuilder
     private var eventList: some View {
-        ScrollView {
-            LazyVStack(spacing: 6) {
+        if engine.events.count <= Layout.historyInlineRows {
+            VStack(spacing: 6) { eventRows }
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 6) { eventRows }
+            }
+            .frame(height: Layout.historyListHeight)
+        }
+    }
+
+    private var eventRows: some View {
                 ForEach(engine.events) { e in
                     HStack(spacing: 9) {
                         Image(systemName: e.trigger.symbol)
@@ -125,8 +137,5 @@ struct HistoryView: View {
                             .fill(Color.primary.opacity(0.05))
                     )
                 }
-            }
-        }
-        .frame(maxHeight: 240)
     }
 }

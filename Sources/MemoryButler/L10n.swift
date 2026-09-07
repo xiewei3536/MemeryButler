@@ -150,9 +150,9 @@ enum L10n {
         "hist.count":       ["Times", "次数", "次數"],
         "hist.clear":       ["Clear History", "清除记录", "清除紀錄"],
         "hist.clear.confirm": ["Clear all? Click again", "确定清除？再点一次", "確定清除？再按一次"],
-        "hist.note.swap":     ["stopped early to avoid swapping", "提前停止，避免写入磁盘", "提早停止，避免寫入磁碟"],
-        "hist.note.critical": ["stopped early — critical pressure", "提前停止，压力临界", "提早停止，壓力緊繃"],
-        "hist.note.thermal":  ["stopped early — Mac running hot", "提前停止，温度偏高", "提早停止，溫度偏高"],
+        "hist.note.swap":     ["avoided swapping", "避免写磁盘而停", "避免寫磁碟而停"],
+        "hist.note.critical": ["critical pressure", "压力临界而停", "壓力緊繃而停"],
+        "hist.note.thermal":  ["Mac running hot", "过热而停", "過熱而停"],
 
         // App 分頁（誰在佔用記憶體）
         "tab.apps":        ["Apps", "应用", "App"],
@@ -199,7 +199,7 @@ enum L10n {
         "decision.skip.compressor": ["Freeing can't help now — it would only push apps to disk. Quitting apps is what helps.", "此刻释放帮不上忙，再施压只会把 App 写进磁盘；关闭 App 才有效", "此刻釋放幫不上忙，再施壓只會把 App 寫進磁碟；關閉 App 才有效"],
         "decision.skip.swapping":   ["Mac is swapping right now — the butler stays out of the way", "系统正在写入磁盘，管家不添乱", "系統正在寫入磁碟，管家不添亂"],
         "decision.skip.critical":   ["Pressure is critical — adding ballast would hurt; quit some apps", "压力已临界，此时施压只会更糟，请关闭几个 App", "壓力已緊繃，此時施壓只會更糟，請關閉幾個 App"],
-        "hist.note.compressor":     ["stopped early — one compression pass is enough", "提前停止，压缩一轮即止", "提早停止，壓縮一輪即止"],
+        "hist.note.compressor":     ["one compression pass", "压缩一轮即止", "壓縮一輪即止"],
     ]
 }
 

@@ -10,10 +10,8 @@ struct AppsView: View {
         VStack(spacing: 10) {
             header
             if usage.hasScanned {
-                ScrollView {
-                    AppRowsView(rows: usage.rows, other: usage.other, confirmingId: $confirmingId)
-                }
-                .frame(maxHeight: 372)
+                // 最多 8 個 App + 1 列背景程序，不需要捲動；視窗高度跟著列數自適應
+                AppRowsView(rows: usage.rows, other: usage.other, confirmingId: $confirmingId)
                 footer
             } else {
                 placeholder

@@ -1,3 +1,13 @@
+## What's new in 1.2.1
+
+**English** — Fix: the Apps and History tabs collapsed to a single row (ScrollView inside a self-sizing menu bar panel). The panel now adapts to its content: the Apps list and short histories expand fully, long histories scroll at a fixed height, and Settings is as tall as Overview. Shorter "stopped early" notes in History so they no longer truncate.
+
+**简体中文** — 修复：「应用」与「记录」页被压扁到只剩一行（自适应大小的菜单栏面板里放 ScrollView 的问题）。面板现在跟随内容自适应：应用列表与较短的记录完整展开，记录过多时才固定高度滚动，设置页与总览同高。记录里的「提前停止」注记缩短，不再被截断。
+
+**繁體中文** — 修正：「App」與「紀錄」分頁被壓扁到只剩一列（自動調整大小的選單列面板裡放 ScrollView 的問題）。面板現在跟著內容自適應：App 列表與較短的紀錄完整展開，紀錄過多才固定高度捲動，設定分頁與總覽同高。紀錄裡的「提早停止」註記縮短，不再被截斷。
+
+---
+
 ## What's new in 1.2.0
 
 **English**

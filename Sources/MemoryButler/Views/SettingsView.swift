@@ -15,7 +15,7 @@ struct SettingsView: View {
             }
             .padding(.bottom, 2)
         }
-        .frame(height: 432)   // 固定高度,內容以滾輪捲動
+        .frame(height: Layout.settingsHeight)   // 內容一定超過一頁：固定高度捲動，且與總覽同高
     }
 
     // MARK: 自動化
