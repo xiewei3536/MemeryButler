@@ -428,13 +428,15 @@ final class LagDetector: ObservableObject {
             }
             let config = NSWorkspace.OpenConfiguration()
             config.activates = false
-            do {
-                _ = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
-                self.notes[id] = .restarted
-            } catch {
-                self.notes[id] = .failed
+            // 用完成回呼版本：async 版會把非 Sendable 的 NSWorkspace／設定帶離主執行緒（Swift 5.10 會警告）
+            NSWorkspace.shared.openApplication(at: url, configuration: config) { [weak self] _, error in
+                let ok = error == nil
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.notes[id] = ok ? .restarted : .failed
+                    self.clearNoteLater(id, after: 6)
+                }
             }
-            self.clearNoteLater(id, after: 6)
         }
     }
 
