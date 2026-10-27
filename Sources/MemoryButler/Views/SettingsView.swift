@@ -1,16 +1,14 @@
 import SwiftUI
 
 struct SettingsView: View {
+    // 捲動交給面板外層的 FittingScroll（高度跟著螢幕走），這裡不再自己包 ScrollView
     var body: some View {
-        ScrollView {
-            SettingsContent()
-                .padding(.bottom, 2)
-        }
-        .frame(height: Layout.settingsHeight)   // 內容一定超過一頁：固定高度捲動，且與總覽同高
+        SettingsContent()
+            .padding(.bottom, 2)
     }
 }
 
-/// 設定內容本體（獨立出來：ScrollView 裡的內容離屏快照畫不出來，自我測試直接渲染這個）
+/// 設定內容本體（自我測試的離屏快照也直接渲染這個）
 struct SettingsContent: View {
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater

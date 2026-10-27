@@ -1,5 +1,62 @@
 import SwiftUI
 
+// MARK: - 自適應高度的捲動區
+//
+// MenuBarExtra 面板依內容自動調整大小，ScrollView 的理想高度≈0，直接放會被壓扁到一列。
+// 這裡先量內容的自然高度，外框取 min(自然高度, 上限)：放得下就跟內容一樣高（不捲動、不回彈），
+// 放不下才固定在上限並捲動。量到的高度依 key（分頁）記住，切回來時不會先跳到上限再縮回。
+
+struct FittingScroll<Key: Hashable, Content: View>: View {
+    let key: Key
+    let maxHeight: CGFloat
+    @ViewBuilder var content: Content
+
+    @State private var heights: [Key: CGFloat] = [:]
+    @Environment(\.renderingSnapshot) private var renderingSnapshot
+
+    var body: some View {
+        if renderingSnapshot {
+            // 離屏快照畫不出 ScrollView 的內容：直接畫，並裁到上限，呈現「打開時看得到的範圍」。
+            // 內容照自然高度排（跟在 ScrollView 裡一樣），不能被上限擠壓，否則文字換行會跟實際不同
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxHeight: maxHeight, alignment: .top)
+                .clipped()
+        } else {
+            let natural = heights[key]
+            ScrollView(.vertical) {
+                content.background(
+                    GeometryReader { g in
+                        Color.clear.preference(key: NaturalHeightKey.self, value: g.size.height)
+                    }
+                )
+            }
+            .scrollDisabled((natural ?? .infinity) <= maxHeight + 0.5)
+            .frame(height: min(natural ?? maxHeight, maxHeight))
+            .onPreferenceChange(NaturalHeightKey.self) { h in
+                if h > 0, abs((heights[key] ?? 0) - h) > 0.5 { heights[key] = h }
+            }
+        }
+    }
+}
+
+private struct NaturalHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct RenderingSnapshotKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// 自我測試的離屏快照（ImageRenderer）：某些元件要改用畫得出來的替代呈現
+    var renderingSnapshot: Bool {
+        get { self[RenderingSnapshotKey.self] }
+        set { self[RenderingSnapshotKey.self] = newValue }
+    }
+}
+
 // MARK: - 卡片容器
 
 struct Card<Content: View>: View {
@@ -43,15 +100,18 @@ struct GaugeRing: View {
     let centerSubtitle: String
     @ObservedObject private var panel = AppModel.shared.panel
 
-    private let lineWidth: CGFloat = 11
+    private let lineWidth: CGFloat = 10
     /// 面板看不見時不做過場動畫（每 2 秒一次 0.5 秒的動畫在隱藏狀態下純粹燒 CPU）
     private var transition: Animation? { panel.isVisible ? .easeOut(duration: 0.5) : nil }
 
     var body: some View {
+        // 環線往內縮半個線寬：整個環都畫在框內。放在 ScrollView 裡時，超出框的部分會被裁掉
         ZStack {
             Circle()
+                .inset(by: lineWidth / 2)
                 .stroke(Color.primary.opacity(0.08), style: StrokeStyle(lineWidth: lineWidth))
             Circle()
+                .inset(by: lineWidth / 2)
                 .trim(from: 0, to: max(0.003, fraction))
                 .stroke(
                     level.color,
@@ -63,7 +123,7 @@ struct GaugeRing: View {
 
             VStack(spacing: 1) {
                 Text(centerTitle)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()   // 數字跳動時寬度不抖
                     .foregroundStyle(.primary)
                 Text(centerSubtitle)

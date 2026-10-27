@@ -142,7 +142,7 @@ struct LagCard: View {
         let tips = items.filter(\.isTip)
         let verdict = LagItem.verdict(items)
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             if issues.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     icon(verdict.symbol, verdict.level.color)

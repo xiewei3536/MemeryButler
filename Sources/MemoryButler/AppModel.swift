@@ -122,15 +122,15 @@ enum AppInfo {
 
 enum Layout {
     // 選單列面板是「依內容自動調整大小」的視窗，而 ScrollView 的理想高度接近零：
-    // 直接放 ScrollView 會被壓扁到只剩一列。原則：內容少就讓視窗跟著縮短（不用 ScrollView），
-    // 內容多才固定在上限並捲動。上限取總覽分頁的自然高度，切分頁時視窗才不會大跳。
+    // 直接放 ScrollView 會被壓扁到只剩一列。做法（FittingScroll）：先量分頁內容的自然高度，
+    // 外框取 min(自然高度, 螢幕放得下的高度)——放得下就跟內容一樣高、不捲動，放不下才捲動。
+    // 1.4.0 在 1280×720（HiDPI）的螢幕上只有 695pt 可用，面板比螢幕高、底部被切掉，
+    // 所以上限一定要跟著面板所在的螢幕走，不能寫死。
 
-    /// 紀錄分頁：不超過這個筆數就直接展開，超過才捲動
-    static let historyInlineRows = 8
-    /// 紀錄分頁捲動時的列表高度（約 8 列）
-    static let historyListHeight: CGFloat = 400
-    /// 設定分頁的高度（內容一定超過一頁，固定為與總覽相近的高度捲動）
-    static let settingsHeight: CGFloat = 600
+    /// 分頁內容以外的高度：內距 28、標題列 ~21、分頁列 ~46、頁尾 ~16、間距 30，再留 ~19 的邊
+    static let panelChrome: CGFloat = 160
+    /// 分頁內容的最小上限（極矮的螢幕也至少給這麼高，寧可捲動）
+    static let minContentHeight: CGFloat = 260
 }
 
 enum Theme {
@@ -154,15 +154,26 @@ enum Theme {
 @MainActor
 final class PanelState: ObservableObject {
     @Published private(set) var isVisible = false
+    /// 面板所在螢幕可用的高度（扣掉選單列與 Dock）；面板不能比這高，否則底部會被切掉
+    @Published private(set) var screenHeight: CGFloat
     private var observers: [NSObjectProtocol] = []
     private var fallbackTimer: DispatchSourceTimer?
 
+    /// 分頁內容最多能有多高
+    var contentMaxHeight: CGFloat { max(Layout.minContentHeight, screenHeight - Layout.panelChrome) }
+
     init() {
+        // 自我測試可以模擬別的螢幕高度（MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT=695）
+        let simulated = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT"]
+            .flatMap(Double.init).map { CGFloat($0) }
+        screenHeight = simulated ?? NSScreen.main?.visibleFrame.height ?? 800
+
         let nc = NotificationCenter.default
         let names: [Notification.Name] = [
             NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
             NSWindow.didChangeOcclusionStateNotification, NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification, NSWindow.willCloseNotification,
+            NSApplication.didChangeScreenParametersNotification,   // 改解析度、接上／拔掉螢幕
         ]
         for name in names {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -179,10 +190,16 @@ final class PanelState: ObservableObject {
     }
 
     private func recompute() {
-        let visible = NSApp.windows.contains { w in
+        let panelWindow = NSApp.windows.first { w in
             w.isVisible && w.frame.height > 100 && w.occlusionState.contains(.visible)
         }
+        let visible = panelWindow != nil
         if visible != isVisible { isVisible = visible }
+        guard ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT"] == nil else { return }
+        // 多螢幕時以面板實際出現的那一個為準
+        if let h = (panelWindow?.screen ?? NSScreen.main)?.visibleFrame.height, abs(h - screenHeight) > 0.5 {
+            screenHeight = h
+        }
     }
 }
 

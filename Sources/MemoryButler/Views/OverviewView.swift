@@ -18,14 +18,16 @@ struct OverviewView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        // 由上到下依「該做什麼」排：判讀與動作在前，被動的曲線放最後——
+        // 小螢幕（1280×720 只有 ~535pt 可放內容）需要捲動時，先被捲掉的是曲線
+        VStack(spacing: 9) {
             if updater.updateAvailable { UpdateBanner() }
             gaugeSection
             LagCard(show: show)
             statsStrip
-            HistoryChartCard()
             ReleaseButton()
             autoStatusCard
+            HistoryChartCard()
         }
     }
 
@@ -40,7 +42,7 @@ struct OverviewView: View {
                 centerTitle: Fmt.percent(s.usedFraction),
                 centerSubtitle: L("gauge.used")
             )
-            .frame(width: 116, height: 116)
+            .frame(width: 108, height: 108)
 
             VStack(alignment: .leading, spacing: 7) {
                 PressureChip(level: s.pressure)
@@ -102,7 +104,7 @@ struct OverviewView: View {
             stripDivider
             stat(L("tile.cached"), Fmt.bytes(s.cached), help: L("help.cached"))
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.05))
@@ -304,7 +306,7 @@ struct HistoryChartCard: View {
                     readout
                 }
                 chart
-                    .frame(height: 58)
+                    .frame(height: 42)
             }
         }
     }
@@ -399,7 +401,7 @@ struct ReleaseButton: View {
                 label
                     .foregroundStyle(.white)
             }
-            .frame(height: 40)
+            .frame(height: 38)
         }
         .buttonStyle(.plain)
         .disabled(engine.isRunning)

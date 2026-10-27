@@ -99,7 +99,7 @@ struct AppRowsView: View {
         // 分母永遠是「所有列的最大值」，條長絕不超過格子
         let maxFootprint = max(everything.map(\.footprint).max() ?? 1, 1)
         let maxCpu = max(everything.compactMap(\.cpuFraction).max() ?? 0, 0.5)   // 至少以半顆核心為滿格，避免 1% 看起來像滿載
-        VStack(spacing: 6) {
+        VStack(spacing: 5) {
             ForEach(everything) { row($0, maxFootprint: maxFootprint, maxCpu: maxCpu) }
         }
     }
@@ -160,7 +160,7 @@ struct AppRowsView: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.05))

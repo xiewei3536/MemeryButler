@@ -27,6 +27,7 @@ enum PopoverTab: CaseIterable {
 struct PopoverView: View {
     @State private var tab: PopoverTab
     @ObservedObject private var settings = AppModel.shared.settings
+    @ObservedObject private var panel = AppModel.shared.panel
 
     init(initialTab: PopoverTab = .overview) {
         _tab = State(initialValue: initialTab)
@@ -38,13 +39,15 @@ struct PopoverView: View {
 
             TabBar(selection: $tab)
 
-            // 各分頁自行決定高度（見 Layout 的說明）：視窗跟著內容長短自適應
-            switch tab {
-            case .overview: OverviewView(show: { tab = $0 })
-            case .apps:     AppsView()
-            case .system:   SystemView()
-            case .history:  HistoryView()
-            case .settings: SettingsView()
+            // 分頁內容跟著自然高度走，但不超過面板所在螢幕放得下的高度（見 Layout 的說明）
+            FittingScroll(key: tab, maxHeight: panel.contentMaxHeight) {
+                switch tab {
+                case .overview: OverviewView(show: { tab = $0 })
+                case .apps:     AppsView()
+                case .system:   SystemView()
+                case .history:  HistoryView()
+                case .settings: SettingsView()
+                }
             }
 
             footer

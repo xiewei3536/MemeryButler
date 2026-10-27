@@ -1,3 +1,13 @@
+## What's new in 1.4.1
+
+**English** — Fix: on smaller or HiDPI-scaled screens (e.g. a monitor running "looks like 1280×720") the panel was taller than the screen and its bottom was cut off. The panel now sizes itself to the screen it opens on and scrolls only when the content doesn't fit, and each tab remembers its height so switching tabs doesn't jump. The Overview now puts the verdict and actions first and the chart last, and is tightened so the everyday case fits a 720-point-tall screen without scrolling. The gauge ring is no longer clipped at the edge, Apps rows are slightly tighter so nine apps fit, and History's Clear button moved into the summary card. The self-test now reports each tab's natural height against the screen (`MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT` simulates other screens).
+
+**简体中文** — 修复：在较小或 HiDPI 缩放的屏幕上（例如「看起来像 1280×720」），面板比屏幕还高，底部被切掉。现在面板会依所在屏幕自动限制高度，内容放不下时才滚动，各分页记住自己的高度，切换时不会跳动。总览改为判断与操作在前、曲线在最后，并更紧凑，720 点高的屏幕在日常情况下不必滚动即可完整显示。仪表环不再被裁切，「应用」页每行更紧凑（9 个 App 放得下），「记录」页的清除按钮移到摘要卡片里。自我测试会报告各分页的自然高度与屏幕上限（`MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT` 可模拟其他屏幕）。
+
+**繁體中文** — 修正：在較小或 HiDPI 縮放的螢幕上（例如「看起來像 1280×720」），面板比螢幕還高，底部被切掉。現在面板會依所在螢幕自動限制高度，內容放不下時才捲動，各分頁記住自己的高度，切換時不會跳動。總覽改為判斷與動作在前、曲線在最後，並更精簡，720 點高的螢幕在日常情況下不必捲動即可完整顯示。儀表環不再被裁切，「App」分頁每列更緊湊（9 個 App 放得下），「紀錄」分頁的清除按鈕移到摘要卡片裡。自我測試會回報各分頁的自然高度與螢幕上限（`MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT` 可模擬其他螢幕）。
+
+---
+
 ## What's new in 1.4.0 — smoothness first
 
 **English**

@@ -16,9 +16,9 @@ struct HistoryView: View {
             if engine.events.isEmpty {
                 emptyState
             } else {
+                // 清除鈕放在摘要卡裡：紀錄很長時不必捲到最底才找得到
                 summaryCard
-                eventList
-                clearButton
+                VStack(spacing: 6) { eventRows }
             }
         }
     }
@@ -113,21 +113,11 @@ struct HistoryView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                HStack {
+                    Spacer()
+                    clearButton
+                }
             }
-        }
-    }
-
-    /// 筆數少就直接展開（視窗跟著變短），多了才固定高度捲動——面板會依內容自動調整大小，
-    /// 直接放 ScrollView 會被壓扁到只剩一列
-    @ViewBuilder
-    private var eventList: some View {
-        if engine.events.count <= Layout.historyInlineRows {
-            VStack(spacing: 6) { eventRows }
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 6) { eventRows }
-            }
-            .frame(height: Layout.historyListHeight)
         }
     }
 

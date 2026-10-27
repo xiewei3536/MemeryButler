@@ -142,10 +142,24 @@ enum SelfTest {
         default: break
         }
 
+        // 面板高度：各分頁內容的自然高度 vs. 這台螢幕放得下的上限（超過就捲動，不會被切掉）。
+        // 可用 MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT=695 模擬別的螢幕
+        let panel = AppModel.shared.panel
+        print("[layout] screen \(Int(panel.screenHeight))pt → tab content max \(Int(panel.contentMaxHeight))pt")
+        for tab in PopoverTab.allCases {
+            let natural = measure(tabContent(tab))
+            let shown = min(natural, panel.contentMaxHeight)
+            let whole = measure(PopoverView(initialTab: tab), width: 332)
+            print("[layout]   \(tab): natural \(Int(natural))pt → \(natural > panel.contentMaxHeight ? "scrolls" : "fits"); "
+                  + "panel \(Int(whole))pt (chrome \(Int(whole - shown))pt, screen \(Int(panel.screenHeight))pt)")
+        }
+
+        // 面板：呈現「打開時看得到的範圍」（超過上限的部分被裁掉，實際可捲動）
         for tab in PopoverTab.allCases {
             render(PopoverView(initialTab: tab), name: "\(tab)\(suffix)", dir: dir, dark: dark)
         }
-        // 設定分頁的內容在 ScrollView 裡畫不出來，另外直接渲染本體
+        // 完整長度的內容（檢查捲動區下方的排版）
+        render(OverviewView().padding(14).frame(width: 332), name: "overview-full\(suffix)", dir: dir, dark: dark)
         render(SettingsContent().padding(14).frame(width: 332), name: "settings-content\(suffix)", dir: dir, dark: dark)
         // 列表另外直接渲染（含兩段式確認狀態），並各渲染一次記憶體／CPU 排序
         let apps = AppModel.shared.apps
@@ -162,6 +176,24 @@ enum SelfTest {
         apps.sortKey = .memory
     }
 
+    @MainActor
+    private static func tabContent(_ tab: PopoverTab) -> AnyView {
+        switch tab {
+        case .overview: return AnyView(OverviewView())
+        case .apps:     return AnyView(AppsView())
+        case .system:   return AnyView(SystemView())
+        case .history:  return AnyView(HistoryView())
+        case .settings: return AnyView(SettingsView())
+        }
+    }
+
+    /// 以面板內容區的寬度（332 − 兩側內距 28）量自然高度
+    @MainActor
+    private static func measure<V: View>(_ view: V, width: CGFloat = 304) -> CGFloat {
+        let renderer = ImageRenderer(content: view.frame(width: width).environment(\.renderingSnapshot, true))
+        return renderer.nsImage?.size.height ?? 0
+    }
+
     /// AppKit 支援的控制項（分頁選擇器、開關、連結）在 ImageRenderer 裡會是黃色佔位，屬正常現象
     @MainActor
     private static func render<V: View>(_ view: V, name: String, dir: String, dark: Bool = false) {
@@ -169,6 +201,7 @@ enum SelfTest {
             content: view
                 .background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, dark ? .dark : .light)
+                .environment(\.renderingSnapshot, true)
         )
         renderer.scale = 2
         guard let image = renderer.nsImage,
