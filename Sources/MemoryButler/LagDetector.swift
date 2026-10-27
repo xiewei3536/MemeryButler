@@ -200,7 +200,7 @@ final class LagDetector: ObservableObject {
         ) { [weak self] note in
             guard let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
                 .processIdentifier else { return }
-            DispatchQueue.main.async { self?.restore(groupId: "app-\(pid)") }
+            DispatchQueue.main.async { [weak self] in self?.restore(groupId: "app-\(pid)") }
         })
     }
 

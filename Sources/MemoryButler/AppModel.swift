@@ -167,7 +167,7 @@ final class PanelState: ObservableObject {
         for name in names {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 // 通知送達時視窗狀態可能還沒更新完，下一輪 run loop 再算
-                DispatchQueue.main.async { self?.recompute() }
+                DispatchQueue.main.async { [weak self] in self?.recompute() }
             })
         }
         // 保險：萬一某次切換沒有通知，每 5 秒校正一次（成本可忽略）
