@@ -29,6 +29,13 @@ struct MemorySample {
     let free: UInt64           // 完全閒置
     let swapUsed: UInt64       // 交換空間已用
     let pressure: PressureLevel
+    /// 開機以來累計換入／換出的位元組（相鄰兩次取樣相減就是速率）
+    var swapInsTotal: UInt64 = 0
+    var swapOutsTotal: UInt64 = 0
+    /// 每秒從磁碟換回記憶體的位元組（約 10 秒平滑，由 MemoryMonitor 填入；單次讀取為 0）。
+    /// 這是「此刻卡不卡」最直接的訊號：交換空間大只代表曾經不夠，持續換入才是現在正在等磁碟
+    var swapInRate: Double = 0
+    var swapOutRate: Double = 0
 
     /// Activity Monitor 定義的「已使用」
     var used: UInt64 { appMemory &+ wired &+ compressed }
@@ -91,7 +98,7 @@ enum MemoryReader {
     /// 交換空間已用位元組數（釋放引擎的煞車依據，sysctl 讀取極快）
     static func swapUsedBytes() -> UInt64 { swapUsage().xsu_used }
 
-    /// 壓縮池目前佈用的位元組數（釋放引擎的煞車依據）
+    /// 壓縮池目前佔用的位元組數（釋放引擎的煞車依據）
     static func compressedBytes() -> UInt64 {
         guard let s = vmStatistics() else { return 0 }
         return UInt64(s.compressor_page_count) &* pageSize
@@ -135,7 +142,9 @@ enum MemoryReader {
             cached: external &+ purgeable,
             free: free,
             swapUsed: swapUsage().xsu_used,
-            pressure: pressureLevel()
+            pressure: pressureLevel(),
+            swapInsTotal: s.swapins &* p,
+            swapOutsTotal: s.swapouts &* p
         )
     }
 }
@@ -148,14 +157,24 @@ enum MemoryReader {
 enum HealthInsight: Equatable {
     case healthy        // 記憶體充足
     case compressing    // 靠壓縮撐著：開始吃緊
-    case swapping       // 已在用磁碟頂替：這才是變卡的主因
+    case swapping       // 已在用磁碟頂替：切回久沒用的 App 會卡一下
+    case thrashing      // 此刻正在頻繁從磁碟換回記憶體：卡頓的當下
     case critical       // 極度緊繃
+
+    /// 平滑後每秒換入 ≥ 4MB（約 1000 頁）＝ App 正在等磁碟。健康的機器這個值幾乎恆為 0
+    static let thrashingRate = Double(4 << 20)
+    /// 每秒換入 ≥ 12MB：明顯的卡頓（8GB 機器實測切換 App 時常見 10～50MB/s）
+    static let severeThrashingRate = Double(12 << 20)
+
+    /// 交換空間大到這個程度＝工作集早已超過實體記憶體（8GB：2GB）
+    static func isSwapHeavy(_ s: MemorySample) -> Bool { s.total > 0 && s.swapUsed >= s.total / 4 }
 
     static func from(_ s: MemorySample) -> HealthInsight {
         guard s.total > 0 else { return .healthy }
         if s.pressure == .critical { return .critical }
+        if s.swapInRate >= thrashingRate { return .thrashing }
         let tightNow  = s.pressure == .warning || s.compressed >= s.total / 5   // 8GB：壓縮 ≥ 1.6GB
-        let heavySwap = s.swapUsed >= s.total / 4                                // 8GB：swap ≥ 2GB
+        let heavySwap = isSwapHeavy(s)                                           // 8GB：swap ≥ 2GB
         let someSwap  = s.swapUsed >= s.total / 8                                // 8GB：swap ≥ 1GB
         // swap 很大 = 工作集早已超過實體記憶體，就算此刻 free 很多（例如剛釋放完），
         // 切回那些被換出的 App 還是會卡；這時不能報「順暢」，要老實說只有關 App 有用
@@ -169,6 +188,7 @@ enum HealthInsight: Equatable {
         case .healthy:     return L("insight.healthy")
         case .compressing: return L("insight.compressing.title")
         case .swapping:    return L("insight.swapping.title")
+        case .thrashing:   return L("insight.thrashing.title")
         case .critical:    return L("insight.critical.title")
         }
     }
@@ -179,6 +199,7 @@ enum HealthInsight: Equatable {
         case .healthy:     return nil
         case .compressing: return L("insight.compressing.advice")
         case .swapping:    return L("insight.swapping.advice")
+        case .thrashing:   return L("insight.thrashing.advice")
         case .critical:    return L("insight.critical.advice")
         }
     }
@@ -187,7 +208,8 @@ enum HealthInsight: Equatable {
         switch self {
         case .healthy:     return "checkmark.seal.fill"
         case .compressing: return "arrow.down.right.and.arrow.up.left"
-        case .swapping:    return "externaldrive.fill.badge.exclamationmark"
+        case .swapping:    return "externaldrive.fill"
+        case .thrashing:   return "externaldrive.fill.badge.exclamationmark"
         case .critical:    return "exclamationmark.octagon.fill"
         }
     }
@@ -198,6 +220,7 @@ enum HealthInsight: Equatable {
         case .healthy:     return .normal
         case .compressing: return .warning
         case .swapping:    return .warning
+        case .thrashing:   return .warning
         case .critical:    return .critical
         }
     }
@@ -217,6 +240,13 @@ enum Fmt {
 
     static func percent(_ fraction: Double) -> String {
         "\(Int((fraction * 100).rounded()))%"
+    }
+
+    /// 每秒位元組 → 「12 MB/s」（小於 0.1MB/s 一律視為 0，避免雜訊）
+    static func rate(_ bytesPerSecond: Double) -> String {
+        let mb = bytesPerSecond / 1_048_576
+        if mb < 0.1 { return "0 MB/s" }
+        return mb < 10 ? String(format: "%.1f MB/s", mb) : "\(Int(mb.rounded())) MB/s"
     }
 
     /// 開機時間這類長度：「3 天 4 小時」或「6 小時 20 分」

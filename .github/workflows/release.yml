@@ -23,6 +23,9 @@ jobs:
       - name: Verify universal binary
         run: lipo -info dist/MemoryButler.app/Contents/MacOS/MemoryButler
 
+      - name: Logic checks
+        run: MEMORYBUTLER_SELFTEST=checks dist/MemoryButler.app/Contents/MacOS/MemoryButler
+
       - name: Create release and upload DMG
         env:
           GH_TOKEN: ${{ github.token }}

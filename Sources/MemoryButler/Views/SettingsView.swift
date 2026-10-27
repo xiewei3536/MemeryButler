@@ -1,21 +1,65 @@
 import SwiftUI
 
 struct SettingsView: View {
+    var body: some View {
+        ScrollView {
+            SettingsContent()
+                .padding(.bottom, 2)
+        }
+        .frame(height: Layout.settingsHeight)   // 內容一定超過一頁：固定高度捲動，且與總覽同高
+    }
+}
+
+/// 設定內容本體（獨立出來：ScrollView 裡的內容離屏快照畫不出來，自我測試直接渲染這個）
+struct SettingsContent: View {
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                automationCard
-                behaviorCard
-                generalCard
-                updateCard
-                aboutCard
-            }
-            .padding(.bottom, 2)
+        VStack(alignment: .leading, spacing: 6) {
+            sectionTitle(L("set.section.lag"), "gauge.with.dots.needle.67percent")
+            lagCard
+            sectionTitle(L("set.section.auto"), "wand.and.stars")
+            automationCard
+            behaviorCard
+            sectionTitle(L("set.section.general"), "slider.horizontal.3")
+            generalCard
+            updateCard
+            aboutCard
+                .padding(.top, 4)
         }
-        .frame(height: Layout.settingsHeight)   // 內容一定超過一頁：固定高度捲動，且與總覽同高
+    }
+
+    private func sectionTitle(_ text: String, _ symbol: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 9.5, weight: .semibold))
+            Text(text)
+                .font(.system(size: 10.5, weight: .semibold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.leading, 4)
+        .padding(.top, 4)
+    }
+
+    // MARK: 卡頓偵測
+
+    private var lagCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 11) {
+                SettingRow(title: L("set.autoDemote.title"),
+                           subtitle: L("set.autoDemote.sub")) {
+                    SwitchToggle(L("set.autoDemote.title"), isOn: $settings.autoDemote)
+                }
+
+                Divider()
+
+                SettingRow(title: L("set.lagAlerts.title"),
+                           subtitle: L("set.lagAlerts.sub")) {
+                    SwitchToggle(L("set.lagAlerts.title"), isOn: $settings.lagAlerts)
+                }
+            }
+        }
     }
 
     // MARK: 自動化

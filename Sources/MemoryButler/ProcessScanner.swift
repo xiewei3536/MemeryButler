@@ -16,7 +16,7 @@ struct AppMemoryUsage: Identifiable {
     let footprint: UInt64
     let processCount: Int
     let app: NSRunningApplication?   // nil = 背景與系統程序（不提供結束）
-    let cpuFraction: Double?         // 兩次掃描之間的 CPU 佈用（1.0 = 一顆核心跑滿）；第一次為 nil
+    let cpuFraction: Double?         // 兩次掃描之間的 CPU 佔用（1.0 = 一顆核心跑滿）；第一次為 nil
     let isSystem: Bool               // /System 底下的 Apple 元件（Finder、Spotlight…）：顯示但不提供結束
 
     var canQuit: Bool { app != nil && !isSystem }
@@ -40,6 +40,7 @@ enum ProcessScanner {
         let app: NSRunningApplication
         let isSystem: Bool          // /System 底下
         let isAccessory: Bool       // 選單列／背景型 App（沒有 Dock 圖示）
+        let bundleID: String?
     }
 
     /// 只傳值型別進背景執行緒（嚴格併發檢查安全）
@@ -47,6 +48,13 @@ enum ProcessScanner {
         let pids: [pid_t]            // 與 bundlePaths 平行，索引即 App 編號
         let bundlePaths: [String]
         let selfPid: pid_t
+    }
+
+    /// 單一程序的累計 CPU（卡頓偵測逐程序算速率用）
+    struct ProcCPU: Sendable {
+        let pid: pid_t
+        let owner: Int          // App 編號；-1 = 不屬於任何 App（背景與系統程序）
+        let cpuTime: UInt64     // 累計 CPU 時間（ns）
     }
 
     struct ScanOutput: Sendable {
@@ -57,6 +65,7 @@ enum ProcessScanner {
         var otherCount: Int = 0
         var otherCpuTime: UInt64 = 0
         var selfFootprint: UInt64 = 0
+        var procs: [ProcCPU] = []        // 每個讀得到的程序（不含自己）
     }
 
     /// rusage 的 CPU 時間是 mach 絕對時間單位，Apple Silicon 需換算成 ns
@@ -68,7 +77,7 @@ enum ProcessScanner {
 
     /// 主執行緒：拍一張目前 App 的快照（一般 App 與選單列 App；排除自己與純背景程序）
     @MainActor
-    static func snapshotApps() -> [RunningApp] {
+    static func snapshotApps(withIcons: Bool = true) -> [RunningApp] {
         let me = ProcessInfo.processInfo.processIdentifier
         return NSWorkspace.shared.runningApplications.compactMap { app in
             guard app.processIdentifier > 0, app.processIdentifier != me else { return nil }
@@ -80,10 +89,11 @@ enum ProcessScanner {
             return RunningApp(pid: app.processIdentifier,
                               bundlePath: path,
                               name: app.localizedName ?? app.bundleIdentifier ?? "?",
-                              icon: app.icon,
+                              icon: withIcons ? app.icon : nil,
                               app: app,
                               isSystem: path?.hasPrefix("/System/") ?? false,
-                              isAccessory: app.activationPolicy == .accessory)
+                              isAccessory: app.activationPolicy == .accessory,
+                              bundleID: app.bundleIdentifier)
         }
     }
 
@@ -105,6 +115,7 @@ enum ProcessScanner {
         guard count > 0 else { return out }
 
         var pathBuf = [CChar](repeating: 0, count: Int(PATH_MAX))
+        out.procs.reserveCapacity(Int(count))
 
         for pid in pids.prefix(Int(count)) where pid > 0 {
             // 其他使用者的程序與核心讀不到（EPERM），那些本來就不是使用者能關的
@@ -126,6 +137,7 @@ enum ProcessScanner {
                 }
             }
 
+            out.procs.append(ProcCPU(pid: pid, owner: owner ?? -1, cpuTime: cpu))
             if let o = owner {
                 out.footprints[o] &+= fp
                 out.counts[o] += 1
@@ -160,6 +172,38 @@ enum ProcessScanner {
         return nil
     }
 
+    /// 程序啟動時間（微秒）：pid 會被重用，搭配 pid 才能確認是同一個程序
+    nonisolated static func startTime(_ pid: pid_t) -> UInt64? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
+    }
+
+    /// 程序目前的基礎優先權（31 = 一般 App、20 = launchd 背景代理、4 = 背景狀態）
+    nonisolated static func basePriority(_ pid: pid_t) -> Int32? {
+        var info = proc_taskinfo()
+        let size = Int32(MemoryLayout<proc_taskinfo>.size)
+        return proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, size) == size ? info.pti_priority : nil
+    }
+
+    /// 程序執行檔的完整路徑（讀不到回傳 nil）
+    nonisolated static func processPath(_ pid: pid_t) -> String? {
+        var buf = [CChar](repeating: 0, count: Int(PATH_MAX))
+        return proc_pidpath(pid, &buf, UInt32(buf.count)) > 0 ? String(cString: buf) : nil
+    }
+
+    /// 程序的可讀名稱：優先用完整路徑的最後一段（proc_name 只有 16 字元會被截斷）
+    nonisolated static func processName(_ pid: pid_t) -> String {
+        if let path = processPath(pid) {
+            let name = (path as NSString).lastPathComponent
+            if !name.isEmpty { return name }
+        }
+        var buf = [CChar](repeating: 0, count: 256)
+        if proc_name(pid, &buf, UInt32(buf.count)) > 0 { return String(cString: buf) }
+        return "pid \(pid)"
+    }
+
     /// "/Applications/Foo.app/Contents/Frameworks/Bar.app/..." → "/Applications/Foo.app"
     private static func outermostAppBundle(_ path: String) -> String? {
         guard let r = path.range(of: ".app/") else { return nil }
@@ -182,7 +226,7 @@ final class AppUsageModel: ObservableObject {
     private var scanning = false
     private let topLimit = 8
     private var allRows: [AppMemoryUsage] = []
-    /// 上一次掃描各 App 的累計 CPU 時間，用來算這段時間的佈用率
+    /// 上一次掃描各 App 的累計 CPU 時間，用來算這段時間的佔用率
     private var lastCpu: [String: (time: UInt64, date: Date)] = [:]
 
     func refresh() async {

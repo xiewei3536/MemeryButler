@@ -2,26 +2,27 @@ import SwiftUI
 import Charts
 
 struct OverviewView: View {
-    /// 健康判讀建議「看看是哪些 App」時，切到 App 分頁
-    var showApps: () -> Void
+    /// 卡片上的「看看是哪些 App」「看溫度」：切到對應分頁
+    var show: (PopoverTab) -> Void
 
-    @ObservedObject private var monitor = AppModel.shared.monitor
-    @ObservedObject private var engine = AppModel.shared.engine
+    // 即時數據只透過節拍器取得：面板關著時不重算（見 PanelFeed）
+    @ObservedObject private var feed = AppModel.shared.feed
     @ObservedObject private var autopilot = AppModel.shared.autopilot
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater
     @ObservedObject private var panel = AppModel.shared.panel
+    private var monitor: MemoryMonitor { AppModel.shared.monitor }
 
-    init(showApps: @escaping () -> Void = {}) {
-        self.showApps = showApps
+    init(show: @escaping (PopoverTab) -> Void = { _ in }) {
+        self.show = show
     }
 
     var body: some View {
         VStack(spacing: 10) {
             if updater.updateAvailable { UpdateBanner() }
             gaugeSection
-            insightRow
-            tileGrid
+            LagCard(show: show)
+            statsStrip
             HistoryChartCard()
             ReleaseButton()
             autoStatusCard
@@ -47,7 +48,7 @@ struct OverviewView: View {
                 summaryLine(title: L("sum.available"), value: Fmt.bytes(s.available), emphasized: true)
                     .help(L("help.available"))
                 summaryLine(title: L("sum.total"), value: Fmt.bytes(s.total))
-                summaryLine(title: L("sum.swap"), value: Fmt.bytes(s.swapUsed))
+                swapLine(s)
                     .help(L("help.swap"))
             }
             Spacer(minLength: 0)
@@ -69,32 +70,67 @@ struct OverviewView: View {
         }
     }
 
-    // MARK: 白話健康判讀（一句話說現在順不順、該做什麼）
-
-    private var insightRow: some View {
-        let insight = HealthInsight.from(monitor.current)
-        return InsightCard(
-            symbol: insight.symbol, level: insight.level, title: insight.title, advice: insight.advice,
-            actionTitle: insight.advice == nil ? nil : L("insight.seeApps"), action: showApps
-        )
-        .animation(.easeInOut(duration: 0.3), value: insight)
+    /// 交換空間：此刻正在換入時附上速率（這才是「現在卡不卡」）
+    private func swapLine(_ s: MemorySample) -> some View {
+        HStack(spacing: 6) {
+            summaryLine(title: L("sum.swap"), value: Fmt.bytes(s.swapUsed))
+            if s.swapInRate >= 512 * 1024 {
+                HStack(spacing: 1) {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 8, weight: .bold))
+                    Text(Fmt.rate(s.swapInRate))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(s.swapInRate >= HealthInsight.thrashingRate
+                                 ? Color(nsColor: .systemOrange) : Color.secondary)
+                .help(L("help.swapRate"))
+            }
+        }
     }
 
-    // MARK: 四格統計
+    // MARK: 四項細目（一列，數字在上、名稱在下）
 
-    private var tileGrid: some View {
+    private var statsStrip: some View {
         let s = monitor.current
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
-                         spacing: 8) {
-            StatTile(title: L("tile.app"), value: Fmt.bytes(s.appMemory), symbol: "square.grid.2x2",
-                     help: L("help.app"))
-            StatTile(title: L("tile.wired"), value: Fmt.bytes(s.wired), symbol: "lock",
-                     help: L("help.wired"))
-            StatTile(title: L("tile.compressed"), value: Fmt.bytes(s.compressed), symbol: "archivebox",
-                     help: L("help.compressed"))
-            StatTile(title: L("tile.cached"), value: Fmt.bytes(s.cached), symbol: "internaldrive",
-                     help: L("help.cached"))
+        return HStack(spacing: 0) {
+            stat(L("tile.app"), Fmt.bytes(s.appMemory), help: L("help.app"))
+            stripDivider
+            stat(L("tile.wired"), Fmt.bytes(s.wired), help: L("help.wired"))
+            stripDivider
+            stat(L("tile.compressed"), Fmt.bytes(s.compressed), help: L("help.compressed"))
+            stripDivider
+            stat(L("tile.cached"), Fmt.bytes(s.cached), help: L("help.cached"))
         }
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+    }
+
+    private func stat(_ title: String, _ value: String, help: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(title)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 2)
+        .help(help)
+    }
+
+    private var stripDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.1))
+            .frame(width: 0.5, height: 22)
     }
 
     // MARK: 自動釋放狀態
@@ -112,7 +148,12 @@ struct OverviewView: View {
                         Text(settings.autoEnabled ? L("auto.on") : L("auto.off"))
                             .font(.system(size: 12, weight: .medium))
                         if settings.autoEnabled {
-                            cooldownBadge
+                            if autopilot.isSuspended {
+                                badge(L("auto.paused"))
+                                    .help(L("help.autoPaused"))
+                            } else {
+                                cooldownBadge
+                            }
                         }
                     }
                     if settings.autoEnabled {
@@ -130,7 +171,8 @@ struct OverviewView: View {
                             Text("\(Fmt.time.string(from: at))  \(autopilot.lastDecision)")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     } else {
                         Text(L("auto.hint.off"))
@@ -159,14 +201,18 @@ struct OverviewView: View {
         let remaining = autopilot.cooldownRemaining
         if remaining > 0 {
             let t = "\(Int(remaining) / 60):\(String(format: "%02d", Int(remaining) % 60))"
-            Text(LF("auto.cooldown", t))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1.5)
-                .background(Capsule().fill(Color.primary.opacity(0.07)))
+            badge(LF("auto.cooldown", t))
         }
+    }
+
+    private func badge(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 }
 
@@ -242,9 +288,10 @@ struct UpdateBanner: View {
 // MARK: - 歷史曲線卡（單一序列:藍;0–100 固定刻度、零基線;懸停讀值）
 
 struct HistoryChartCard: View {
-    @ObservedObject private var monitor = AppModel.shared.monitor
+    @ObservedObject private var feed = AppModel.shared.feed
     @ObservedObject private var settings = AppModel.shared.settings
     @State private var hovered: MemorySample?
+    private var monitor: MemoryMonitor { AppModel.shared.monitor }
 
     var body: some View {
         Card {

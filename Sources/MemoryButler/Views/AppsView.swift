@@ -12,7 +12,8 @@ struct AppsView: View {
             if usage.hasScanned {
                 // 最多 8 個 App + 1 列背景程序，不需要捲動；視窗高度跟著列數自適應
                 AppRowsView(rows: usage.rows, other: usage.other,
-                            sortKey: usage.sortKey, confirmingId: $confirmingId)
+                            sortKey: usage.sortKey, confirmingId: $confirmingId,
+                            flags: AppRowsView.flags(from: AppModel.shared.lag.report))
                 footer
             } else {
                 placeholder
@@ -39,14 +40,10 @@ struct AppsView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Picker("", selection: $usage.sortKey) {
-                    Text(L("apps.sort.memory")).tag(AppUsageModel.SortKey.memory)
-                    Text(L("apps.sort.cpu")).tag(AppUsageModel.SortKey.cpu)
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.mini)
-                .labelsHidden()
-                .fixedSize()
+                MiniSegmented(selection: $usage.sortKey, options: [
+                    (AppUsageModel.SortKey.memory, L("apps.sort.memory")),
+                    (AppUsageModel.SortKey.cpu, L("apps.sort.cpu")),
+                ])
                 .help(L("help.apps.sort"))
             }
             Text(L("apps.sub"))
@@ -78,10 +75,23 @@ struct AppsView: View {
 // MARK: - 列表本體（獨立出來：最多 9 列不需要 lazy，離屏渲染也能直接檢視）
 
 struct AppRowsView: View {
+    enum Flag { case runaway, demoted }
+
     let rows: [AppMemoryUsage]
     let other: AppMemoryUsage?
     let sortKey: AppUsageModel.SortKey
     @Binding var confirmingId: String?
+    /// 卡頓偵測的標記：列 id（"pid-<pid>"）→ 失控中／已降到背景
+    var flags: [String: Flag] = [:]
+
+    static func flags(from report: LagReport) -> [String: Flag] {
+        var out: [String: Flag] = [:]
+        for r in report.runaways {
+            guard let pid = r.appPid else { continue }
+            out["pid-\(pid)"] = r.isDemoted ? .demoted : .runaway
+        }
+        return out
+    }
 
     private var everything: [AppMemoryUsage] { rows + (other.map { [$0] } ?? []) }
 
@@ -114,11 +124,12 @@ struct AppRowsView: View {
                 .frame(width: 26, height: 26)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(r.name)
                         .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
+                    if let f = flags[r.id] { flagBadge(f) }
                     Spacer(minLength: 4)
                     Text(primary)
                         .font(.system(size: 12.5, weight: .semibold, design: .rounded))
@@ -158,6 +169,22 @@ struct AppRowsView: View {
         .animation(.easeInOut(duration: 0.35), value: sortKey)
     }
 
+    private func flagBadge(_ f: Flag) -> some View {
+        let color = f == .runaway ? Color(nsColor: .systemOrange) : Color.secondary
+        return HStack(spacing: 2) {
+            Image(systemName: f == .runaway ? "flame.fill" : "tortoise.fill")
+                .font(.system(size: 7.5, weight: .bold))
+            Text(f == .runaway ? L("apps.flag.runaway") : L("apps.flag.demoted"))
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1.5)
+        .background(Capsule().fill(color.opacity(0.15)))
+        .fixedSize()
+        .help(f == .runaway ? L("help.flag.runaway") : L("help.flag.demoted"))
+    }
+
     @ViewBuilder
     private func icon(for r: AppMemoryUsage) -> some View {
         if let img = r.icon {
@@ -176,17 +203,14 @@ struct AppRowsView: View {
     private func quitControls(for r: AppMemoryUsage) -> some View {
         if confirmingId == r.id {
             HStack(spacing: 4) {
-                Button(L("apps.confirmQuit")) {
+                PillButton(title: L("apps.confirmQuit"), role: .destructive) {
                     r.app?.terminate()
                     confirmingId = nil
                 }
-                .controlSize(.mini)
-                .tint(Color(nsColor: .systemRed))
-                Button(L("apps.cancel")) { confirmingId = nil }
-                    .controlSize(.mini)
+                PillButton(title: L("apps.cancel")) { confirmingId = nil }
             }
         } else {
-            Button(L("apps.quit")) {
+            PillButton(title: L("apps.quit")) {
                 confirmingId = r.id
                 let id = r.id
                 Task { @MainActor in
@@ -194,7 +218,6 @@ struct AppRowsView: View {
                     if confirmingId == id { confirmingId = nil }
                 }
             }
-            .controlSize(.mini)
             .help(L("apps.quit.help"))
         }
     }

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-check:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+
+      # 純邏輯自我檢查：門檻、拒絕出手條件、無效學習、失控遲滯、三語格式字串、背景優先權（見 Checks.swift）
+      - name: Logic checks
+        run: MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler

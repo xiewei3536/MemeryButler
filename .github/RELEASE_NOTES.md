@@ -1,3 +1,31 @@
+## What's new in 1.4.0 — smoothness first
+
+**English**
+- 🐢 **Lag detection** — finds what is actually making your Mac slow and says it in one line: apps hogging the CPU (e.g. a stuck sync client at 90% for an hour), memory being read back from disk *right now* (MB/s), CPU heat throttling, a high-refresh external display on Intel graphics, days of uptime with gigabytes of swap. The header shows one verdict — Smooth / A bit slow / Laggy.
+- 🛠 **One-click fixes** — for a runaway app: **Lower priority** (no root, reversible, restored automatically when you switch to that app), **Restart** (the real cure for a stuck sync client) or **Quit**. Menu-bar apps and Apple's background workers (Spotlight indexing, Siri Suggestions, Photos analysis) that hog the CPU for 5 minutes are calmed automatically and handed back their priority as soon as they go idle — never apps in the Dock, Apple's UI, calls, remote desktop, recorders or VPNs. Calmed items stay listed with a Restore button, and nothing is left calmed after MemoryButler quits, even after a crash. You get a notification after 10 minutes.
+- 🛑 **Freeing never wastes effort** — measured on an 8GB Mac with 3GB of swap: the hourly scheduled release reclaimed 0MB in 60 of 60 runs while pushing 1GB+ of other apps into compression 30 times, i.e. a stutter every hour. Freeing now declines whenever swap is ≥ ¼ of RAM or the Mac is swapping right now; after 3 runs that reclaim nothing, auto-free pauses for 6 hours; scheduled runs skip when memory is plentiful. History shows how many runs were actually effective.
+- 🪶 **Lighter** — idle CPU 1.2% → 0.36%: the hidden panel no longer redraws its chart every 2 seconds, and the menu bar redraws only when the number changes.
+- ✨ **Redesigned** — icon tab bar, smoothness chip, a compact stats strip, swap rate next to swap size, refined buttons, Settings in sections. Fix: uptime now includes sleep (it showed 1 day on a Mac up for 7).
+- 🧪 For developers: `MEMORYBUTLER_SELFTEST=checks` runs 533 logic checks (thresholds, refusal rules, futility learning, runaway hysteresis, translation format strings) in CI; the self-test no longer runs a release unless `MEMORYBUTLER_SELFTEST_RELEASE=1`.
+
+**简体中文**
+- 🐢 **卡顿侦测**——找出真正让 Mac 变慢的原因，一句话说清楚：占满 CPU 的程序（例如卡住的同步程序连续一小时 90%）、此刻正从磁盘读回内存（MB/s）、CPU 过热降速、Intel 内显接高刷新率外接屏幕、连续开机多天且交换空间好几 GB。标题栏直接显示一个判断：顺畅／有点卡／很卡。
+- 🛠 **一键处理**——失控的程序可以**降到后台**（免 root、可还原，切换到该 App 时自动恢复）、**重新启动**（同步程序卡住时真正有效）或**退出**。菜单栏程序与 Apple 的后台工作进程（Spotlight 索引、Siri 建议、照片分析）连续 5 分钟占满 CPU 会被自动压制，一闲下来就自动恢复——绝不碰 Dock 上的 App、系统界面、通话、远程桌面、录屏与 VPN。被压制的项目会一直列着并附「恢复」按钮，内存管家退出（甚至崩溃）后也不会留下被压着的程序。10 分钟后还会通知你。
+- 🛑 **释放不再白费力气**——8GB、交换空间 3GB 的 Mac 实测：每小时定时释放 60 次全部回收 0MB，其中 30 次把 1GB 以上的其他 App 挤进压缩，等于每小时卡一下。现在交换空间达内存 ¼ 或正在换页时一律不出手；连续 3 次没效果就暂停自动释放 6 小时；内存充足时跳过定时释放。记录页显示真正有效的次数。
+- 🪶 **更轻**——闲置 CPU 1.2% → 0.36%：面板关着时不再每 2 秒重画曲线，菜单栏只在数字变化时重画。
+- ✨ **重新设计**——图标分页栏、顺畅度徽章、紧凑的四项细目、交换空间旁显示换入速率、更精致的按钮、设置分区。修复：开机时长改为包含睡眠时间（原本开机 7 天只显示 1 天）。
+- 🧪 开发者：`MEMORYBUTLER_SELFTEST=checks` 在 CI 中执行 533 项逻辑检查（门槛、拒绝出手条件、无效学习、失控迟滞、三语格式字符串）；自我测试默认不再执行释放（需 `MEMORYBUTLER_SELFTEST_RELEASE=1`）。
+
+**繁體中文**
+- 🐢 **卡頓偵測**——找出真正讓 Mac 變慢的原因，一句話講清楚：佔滿 CPU 的程式（例如卡住的同步程式連續一小時 90%）、此刻正從磁碟讀回記憶體（MB/s）、CPU 過熱降速、Intel 內顯接高更新率外接螢幕、連續開機多天且交換空間好幾 GB。標題列直接顯示一個判斷：順暢／有點卡／很卡。
+- 🛠 **一鍵處理**——失控的程式可以**降到背景**（免 root、可還原，切換到該 App 時自動恢復）、**重新啟動**（同步程式卡住時真正有效）或**結束**。選單列程式與 Apple 的背景工作程序（Spotlight 索引、Siri 建議、照片分析）連續 5 分鐘佔滿 CPU 會被自動壓制，一閒下來就自動恢復——絕不碰 Dock 上的 App、系統介面、通話、遠端桌面、錄影與 VPN。被壓制的項目會一直列著並附「恢復」按鈕，記憶體管家結束（甚至當機）後也不會留下被壓著的程式。10 分鐘後還會通知你。
+- 🛑 **釋放不再白費力氣**——8GB、交換空間 3GB 的 Mac 實測：每小時定時釋放 60 次全部回收 0MB，其中 30 次把 1GB 以上的其他 App 擠進壓縮，等於每小時卡一下。現在交換空間達記憶體 ¼ 或正在換頁時一律不出手；連續 3 次沒效果就暫停自動釋放 6 小時；記憶體充足時略過定時釋放。紀錄分頁顯示真正有效的次數。
+- 🪶 **更輕**——閒置 CPU 1.2% → 0.36%：面板關著時不再每 2 秒重畫曲線，選單列只在數字變化時重畫。
+- ✨ **重新設計**——圖示分頁列、順暢度徽章、精簡的四項細目、交換空間旁顯示換入速率、更精緻的按鈕、設定分區。修正：開機時長改為包含睡眠時間（原本開機 7 天只顯示 1 天）。
+- 🧪 開發者：`MEMORYBUTLER_SELFTEST=checks` 在 CI 執行 533 項邏輯檢查（門檻、拒絕出手條件、無效學習、失控遲滯、三語格式字串）；自我測試預設不再執行釋放（需 `MEMORYBUTLER_SELFTEST_RELEASE=1`）。
+
+---
+
 ## What's new in 1.3.1
 
 **English** — Visual polish pass. Apps tab: bars were scaled against the first row, so after sorting by CPU the bars of bigger apps overflowed their cards; they now scale against the largest row and never exceed 100%. Sorting by CPU now makes CPU the headline figure and the bar (indigo), with memory in the secondary line; the title follows the sort. Header no longer truncates. Apple system components: Finder-class apps are listed without a Quit button, menu-bar-only system helpers fold into "Background & system processes". System tab: even tile heights (battery cycles moved to the info card). Overview chip now reads "Memory pressure", Activity Monitor's term, so it no longer seems to contradict the butler's verdict. Verified in light and dark mode.
@@ -33,7 +61,7 @@
 
 **简体中文** — 修复：面板关着时内存管家仍占用 12–19% CPU。面板关闭后其视图仍然存活，「监督中」的呼吸灯（1.1.3 起的 repeat-forever 动画）和仪表环过场动画会按屏幕刷新率持续重排版，在高刷屏上每秒 144 次。现在面板不可见时所有动画与计时器暂停，可见时呼吸灯以 12 fps 运行，空闲 CPU 约为 0%。
 
-**繁體中文** — 修正：面板關著時記憶體管家仍佈用 12～19% CPU。面板關閉後其視圖仍然活著，「監督中」的呼吸燈（1.1.3 起的 repeat-forever 動畫）與儀表環過場動畫會依螢幕更新率持續重排版，高更新率螢幕上每秒 144 次。現在面板不可見時所有動畫與計時器暫停，可見時呼吸燈以 12 fps 運行，閒置 CPU 約為 0%。
+**繁體中文** — 修正：面板關著時記憶體管家仍佔用 12～19% CPU。面板關閉後其視圖仍然活著，「監督中」的呼吸燈（1.1.3 起的 repeat-forever 動畫）與儀表環過場動畫會依螢幕更新率持續重排版，高更新率螢幕上每秒 144 次。現在面板不可見時所有動畫與計時器暫停，可見時呼吸燈以 12 fps 運行，閒置 CPU 約為 0%。
 
 ---
 
@@ -66,7 +94,7 @@
 - ♿ 开关带无障碍标签、等宽数字、⌘Q 退出、两段式确认。
 
 **繁體中文**
-- 🛑 **不再可能幫倒忙**——8GB 機器實測：1.1.3「釋放 1.9GB」其實是把 1.8GB *其他 App* 寫進磁碟，之後切回反而更卡。1.2.0 一旦交換空間成長或壓縮池漸滿就立刻停止，且在壓縮池已佈 RAM 12% 以上、swap 正在成長或壓力緊繃時**直接拒絕出手並說明原因**。實測釋放後 swap 成長從 +1.8GB 降為 0。
+- 🛑 **不再可能幫倒忙**——8GB 機器實測：1.1.3「釋放 1.9GB」其實是把 1.8GB *其他 App* 寫進磁碟，之後切回反而更卡。1.2.0 一旦交換空間成長或壓縮池漸滿就立刻停止，且在壓縮池已佔 RAM 12% 以上、swap 正在成長或壓力緊繃時**直接拒絕出手並說明原因**。實測釋放後 swap 成長從 +1.8GB 降為 0。
 - 🔍 **「App」分頁**——看看誰佔用記憶體最多（輔助程序歸入所屬 App，與活動監視器口徑相同），兩下點擊溫和結束。8GB 上這才是真正有效的解法。
 - 🩺 **白話判讀**——儀表下方一句話告訴你現在順不順、該做什麼；懸停任何數字都有說明。
 - ⚡ **更輕的釋放**——壓載填充快約 9 倍，自動釋放改為背景優先權，機器過熱時暫停。

@@ -70,25 +70,48 @@ struct HistoryView: View {
         .padding(.vertical, 40)
     }
 
+    /// 累計回收、有效次數；多數釋放沒效果時老實說明（這台 Mac 的記憶體是被 App 真正佔用的）
     private var summaryCard: some View {
         let total = engine.events.reduce(Int64(0)) { $0 + $1.reclaimed }
+        let effective = engine.events.filter { $0.reclaimed >= ReleaseEngine.effectiveBytes }.count
+        let mostlyFutile = engine.events.count >= 5 && effective * 5 < engine.events.count
         return Card {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L("hist.total"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                    Text(Fmt.bytes(total))
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("hist.total"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        Text(Fmt.bytes(total))
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(L("hist.effective"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text("\(effective)")
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                            Text("/ \(engine.events.count)")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
                         .monospacedDigit()
+                    }
+                    .help(L("help.hist.effective"))
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(L("hist.count"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                    Text("\(engine.events.count)")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                if mostlyFutile {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "info.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(nsColor: .systemOrange))
+                        Text(L("hist.futile.note"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }

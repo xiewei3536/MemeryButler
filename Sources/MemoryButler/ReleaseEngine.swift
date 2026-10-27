@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - 觸發來源與紀錄
 
-enum ReleaseTrigger: String, Codable {
+enum ReleaseTrigger: String, Codable, CaseIterable {
     case manual, pressure, threshold, schedule
 
     var displayName: String { L("trigger.\(rawValue)") }
@@ -31,9 +31,11 @@ enum StopReason: String, Codable {
 }
 
 /// 起跑前就知道出手只會害到使用者的情況：不出手、不記錄，但要老實說
-enum SkipReason: String {
-    case compressorFull   // 壓縮池已佈實體記憶體 12% 以上：再施壓只會把別的 App 寫進磁碟
+enum SkipReason: String, CaseIterable {
+    case compressorFull   // 壓縮池已佔實體記憶體 12% 以上：再施壓只會把別的 App 寫進磁碟
     case swapping         // 交換空間此刻正在成長：系統已經在寫磁碟，別添亂
+    case thrashing        // 此刻正在頻繁從磁碟換回記憶體：再擠只會讓換頁更兇
+    case swapHeavy        // 交換空間已達實體記憶體 1/4：工作集早已超過 RAM，壓載只會把 App 擠進磁碟
     case critical         // 壓力已經緊繃
 }
 
@@ -78,9 +80,14 @@ enum EngineState: Equatable {
 //     加上壓縮池煞車（本版）後，停手後 4 秒內 swap 成長為 0。
 //
 // 因此本版的安全機制：
-//   起跑前：壓縮池 > RAM 12%、swap 正在成長、壓力緊繃 → 不出手，直接告知使用者只有關 App 有用
+//   起跑前：壓縮池 > RAM 12%、swap 正在成長、swap 已達 RAM 1/4、此刻正在換頁、壓力緊繃
+//           → 不出手，直接告知使用者只有關 App 有用
 //   迴圈中（每 64MB 檢查一次）：壓力緊繃 / swap 任何成長 / 壓縮池絕對 > 24% /
 //   壓縮池單趟成長 > 3% / 過熱 → 立刻歸還；警告區停留 2.5 秒 → 收手；總量與時間上限
+//
+// 1.4 實測（同一台 8GB Mac，swap 已 3GB）：每小時排程釋放連續 60 次都回收 0MB，
+// 其中 30 次吃進 1GB 以上壓載——等於每小時逼核心把別的 App 壓縮、寫進磁碟一次。
+// 所以 swap 已大或正在換頁時一律不出手（swapHeavy / thrashing）。
 
 @MainActor
 final class ReleaseEngine: ObservableObject {
@@ -89,12 +96,14 @@ final class ReleaseEngine: ObservableObject {
     @Published private(set) var events: [ReleaseEvent] = []
     @Published private(set) var lastRelease: ReleaseEvent?
 
-    /// 壓縮池已佈實體記憶體多少比例就不出手（8GB ≈ 983MB）
+    /// 壓縮池已佔實體記憶體多少比例就不出手（8GB ≈ 983MB）
     nonisolated static let preflightCompressorFraction = 0.12
     /// 單趟允許壓縮池成長的比例（8GB ≈ 245MB；最少 128MB）
     nonisolated static let compressorGrowthCapFraction = 0.03
     /// 壓縮池絕對上限（8GB 實測 ≥ 29% 開始換出，留足餘裕）
     nonisolated static let compressorHardCapFraction = 0.24
+    /// 回收少於這個量就算「沒效果」（統計有效次數、判斷是否該暫停自動釋放）
+    nonisolated static let effectiveBytes: Int64 = 64 << 20
 
     private let eventsKey = "releaseEvents"
     private let eventsLimit = 60
@@ -113,20 +122,23 @@ final class ReleaseEngine: ObservableObject {
         return false
     }
 
+    /// - Parameter recentSwapInRate: 監控端平滑過的每秒換入量；與起跑前 250ms 探測取大者判斷「是否正在換頁」
     @discardableResult
-    func release(trigger: ReleaseTrigger) async -> ReleaseOutcome {
+    func release(trigger: ReleaseTrigger, recentSwapInRate: Double = 0) async -> ReleaseOutcome {
         guard !isRunning else { return .busy }
 
         let started = Date()
         generation += 1
         state = .running(progress: 0.02)
 
-        // 起跑前檢查：確定出手不會害到使用者。swap 是否「正在」成長要看兩次讀值。
+        // 起跑前檢查：確定出手不會害到使用者。swap 是否「正在」成長、是否正在換入都要看兩次讀值。
         let before = MemoryReader.sample()
-        let swapProbe = MemoryReader.swapUsedBytes()
         try? await Task.sleep(nanoseconds: 250_000_000)
-        let swapGrew = MemoryReader.swapUsedBytes() > swapProbe
-        if let skip = Self.preflight(before, swapGrew: swapGrew) {
+        let probe = MemoryReader.sample()
+        let swapGrew = probe.swapUsed > before.swapUsed
+        let probeRate = Double(probe.swapInsTotal >= before.swapInsTotal ? probe.swapInsTotal - before.swapInsTotal : 0)
+            / max(0.05, probe.date.timeIntervalSince(before.date))
+        if let skip = Self.preflight(before, swapGrew: swapGrew, swapInRate: max(recentSwapInRate, probeRate)) {
             setTransient(.skipped(skip), seconds: 6)
             return .skipped(skip)
         }
@@ -187,9 +199,11 @@ final class ReleaseEngine: ObservableObject {
     }
 
     /// 起跑前判定：這一刻出手會不會只是把別的 App 寫進磁碟
-    nonisolated static func preflight(_ s: MemorySample, swapGrew: Bool) -> SkipReason? {
+    nonisolated static func preflight(_ s: MemorySample, swapGrew: Bool, swapInRate: Double = 0) -> SkipReason? {
         if s.pressure == .critical { return .critical }
         if swapGrew { return .swapping }
+        if swapInRate >= HealthInsight.thrashingRate { return .thrashing }
+        if HealthInsight.isSwapHeavy(s) { return .swapHeavy }
         if s.total > 0, Double(s.compressed) > Double(s.total) * preflightCompressorFraction {
             return .compressorFull
         }

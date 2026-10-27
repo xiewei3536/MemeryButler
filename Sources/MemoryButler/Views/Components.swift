@@ -228,3 +228,131 @@ struct InsightCard: View {
     }
 }
 
+
+// MARK: - 膠囊小按鈕（卡片內的動作：降到背景、重新啟動…）
+//
+// 自繪而非 AppKit 按鈕：大小、顏色與卡片一致，離屏快照也畫得出來
+
+struct PillButton: View {
+    enum Role { case normal, prominent, destructive }
+
+    let title: String
+    var symbol: String? = nil
+    var role: Role = .normal
+    var action: () -> Void
+
+    @State private var hovering = false
+
+    private var tint: Color {
+        switch role {
+        case .normal:      return Theme.series
+        case .prominent:   return Theme.series
+        case .destructive: return Color(nsColor: .systemRed)
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 8.5, weight: .bold))
+                }
+                Text(title)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(role == .prominent ? Color.white : tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3.5)
+            .background(
+                Capsule().fill(role == .prominent
+                               ? AnyShapeStyle(Theme.accentGradient)
+                               : AnyShapeStyle(tint.opacity(hovering ? 0.2 : 0.12)))
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .fixedSize()
+    }
+}
+
+// MARK: - 小型分段選擇（自繪，與分頁列同一套視覺）
+
+struct MiniSegmented<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, title: String)]
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options.indices, id: \.self) { i in
+                let selected = options[i].value == selection
+                Button { selection = options[i].value } label: {
+                    Text(options[i].title)
+                        .font(.system(size: 10.5, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? Color.primary : Color.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selected ? Color(nsColor: .controlBackgroundColor) : Color.clear)
+                                .shadow(color: .black.opacity(selected ? 0.12 : 0), radius: 1, y: 0.5)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.07)))
+        .fixedSize()
+    }
+}
+
+// MARK: - 分頁列（圖示 + 標籤；選中的分頁以淡藍底滑動標示）
+
+struct TabBar: View {
+    @Binding var selection: PopoverTab
+    @Namespace private var ns
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(PopoverTab.allCases, id: \.self) { tab in
+                let selected = tab == selection
+                Button { selection = tab } label: {
+                    VStack(spacing: 2.5) {
+                        Image(systemName: tab.symbol)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .frame(height: 15)
+                        Text(tab.title)
+                            .font(.system(size: 10, weight: selected ? .semibold : .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(selected ? Theme.series : Color.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background {
+                        if selected {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Theme.series.opacity(0.13))
+                                .matchedGeometryEffect(id: "selection", in: ns)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+        // 只讓選取底色滑動；分頁內容本身不做動畫（面板會依內容調整大小，動畫會讓視窗抖動）
+        .animation(.easeInOut(duration: 0.18), value: selection)
+    }
+}

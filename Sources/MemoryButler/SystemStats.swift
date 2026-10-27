@@ -6,7 +6,7 @@ import Darwin
 
 // MARK: - 系統健康取樣（CPU、溫度、功耗、風扇、降頻、電池、螢幕、背景服務）
 //
-// 老 MacBook 變慢的主因常常不是記憶體而是「熱」：CPU 熱到降頻、kernel_task 佈 CPU 逼系統降溫。
+// 老 MacBook 變慢的主因常常不是記憶體而是「熱」：CPU 熱到降頻、kernel_task 佔 CPU 逼系統降溫。
 // 這裡把這些數據讀出來翻成白話。溫度／功耗／風扇走 SMC（IOKit，免 root），金鑰因機型而異，
 // 讀不到就顯示「—」，不猜。
 
@@ -113,7 +113,7 @@ final class SMCReader {
         return Self.decode(type: type, bytes: b)
     }
 
-    private static func decode(type: String, bytes b: [UInt8]) -> Double? {
+    static func decode(type: String, bytes b: [UInt8]) -> Double? {
         // spXY / fpXY：定點數，X 整數位、Y 小數位（十六進位字元），如 sp78 = 7.8、sp87 = 8.7、fpe2 = 14.2
         if type.count == 4, type.hasPrefix("sp") || type.hasPrefix("fp"), b.count >= 2,
            let frac = Int(String(type.last!), radix: 16) {
@@ -173,6 +173,18 @@ enum SystemReader {
         let user = UInt64(info.cpu_ticks.0), sys = UInt64(info.cpu_ticks.1)
         let idle = UInt64(info.cpu_ticks.2), nice = UInt64(info.cpu_ticks.3)
         return (user + sys + nice, user + sys + nice + idle)
+    }
+
+    /// 開機到現在的實際時間（含睡眠）。ProcessInfo.systemUptime 不算睡眠時間，
+    /// 常闔上螢幕的筆電會顯示「1 天」而實際已開機 7 天
+    static func uptime() -> TimeInterval {
+        var tv = timeval()
+        var size = MemoryLayout<timeval>.size
+        var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+        guard sysctl(&mib, 2, &tv, &size, nil, 0) == 0, tv.tv_sec > 0 else {
+            return ProcessInfo.processInfo.systemUptime
+        }
+        return max(0, Date().timeIntervalSince1970 - (Double(tv.tv_sec) + Double(tv.tv_usec) / 1_000_000))
     }
 
     static func thermalLevel() -> Int? {
@@ -265,7 +277,7 @@ enum SystemReader {
             cpuSpeedLimit: cpuSpeedLimit(),
             battery: battery(),
             displays: displays(),
-            uptime: ProcessInfo.processInfo.systemUptime,
+            uptime: uptime(),
             thirdPartyAgents: thirdPartyAgents(),
             isAppleSilicon: isAppleSilicon
         )

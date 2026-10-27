@@ -1,15 +1,25 @@
 import SwiftUI
 
 enum PopoverTab: CaseIterable {
-    case overview, apps, system, settings, history
+    case overview, apps, system, history, settings
 
     var title: String {
         switch self {
         case .overview: return L("tab.overview")
         case .apps:     return L("tab.apps")
         case .system:   return L("tab.system")
-        case .settings: return L("tab.settings")
         case .history:  return L("tab.history")
+        case .settings: return L("tab.settings")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .overview: return "gauge.with.dots.needle.67percent"
+        case .apps:     return "square.grid.2x2"
+        case .system:   return "cpu"
+        case .history:  return "clock.arrow.circlepath"
+        case .settings: return "gearshape"
         }
     }
 }
@@ -26,19 +36,15 @@ struct PopoverView: View {
         VStack(spacing: 10) {
             header
 
-            Picker("", selection: $tab) {
-                ForEach(PopoverTab.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            TabBar(selection: $tab)
 
             // 各分頁自行決定高度（見 Layout 的說明）：視窗跟著內容長短自適應
             switch tab {
-            case .overview: OverviewView(showApps: { tab = .apps })
+            case .overview: OverviewView(show: { tab = $0 })
             case .apps:     AppsView()
             case .system:   SystemView()
-            case .settings: SettingsView()
             case .history:  HistoryView()
+            case .settings: SettingsView()
             }
 
             footer
@@ -55,6 +61,7 @@ struct PopoverView: View {
             Text(L("app.name"))
                 .font(.system(size: 14, weight: .bold))
             Spacer()
+            SmoothnessChip()
         }
     }
 

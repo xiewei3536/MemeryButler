@@ -6,6 +6,11 @@ struct MemoryButlerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel.shared
 
+    init() {
+        // 純邏輯自我檢查：在任何視窗、監控啟動之前就跑完並結束
+        if ProcessInfo.processInfo.environment["MEMORYBUTLER_SELFTEST"] == "checks" { Checks.runAndExit() }
+    }
+
     var body: some Scene {
         MenuBarExtra {
             PopoverView()
@@ -17,9 +22,23 @@ struct MemoryButlerApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var sigterm: DispatchSourceSignal?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         if SelfTest.isEnabled { Task { await SelfTest.run() } }
+
+        // kill／killall 也走正常結束流程（applicationWillTerminate 會把降級過的程序還原）
+        signal(SIGTERM, SIG_IGN)
+        let src = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        src.setEventHandler { NSApp.terminate(nil) }
+        src.resume()
+        sigterm = src
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // 被降到背景優先權的程序在管家結束後不該繼續被壓著
+        MainActor.assumeIsolated { AppModel.shared.lag.restoreAll() }
     }
 }
 
@@ -27,8 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 //
 //   MEMORYBUTLER_SELFTEST=1 dist/MemoryButler.app/Contents/MacOS/MemoryButler
 //
-// 啟動後直接：取樣 → 掃描 App 佔用 → 跑一次釋放 → 印出結果 → 結束。
-// MenuBarExtra 面板無法用 System Events 自動化，這是驗證兩條核心路徑最實際的方法。
+// 啟動後直接：取樣 → 掃描 App 佔用 → 系統感測 → 卡頓偵測 → 印出結果 → 結束。
+// 加上 MEMORYBUTLER_SELFTEST_RELEASE=1 才會真的跑一次釋放（會對系統施壓，預設不跑）。
+// 純邏輯檢查另見 Checks.swift（MEMORYBUTLER_SELFTEST=checks）。
+// MenuBarExtra 面板無法用 System Events 自動化，這是驗證核心路徑最實際的方法。
 
 enum SelfTest {
     static var isEnabled: Bool { ProcessInfo.processInfo.environment["MEMORYBUTLER_SELFTEST"] == "1" }
@@ -66,12 +87,34 @@ enum SelfTest {
             print("[selftest]   cpu \(r.cpuFraction.map { String(format: "%.0f%%", $0 * 100) } ?? "-")  \(r.name)")
         }
 
+        // 卡頓偵測：兩次掃描之間才有 CPU 速率；失控要持續 3 分鐘，自我測試只印出目前的 CPU 大戶
+        await model.lag.tick()
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        await model.lag.tick()
+        let m = model.monitor.current
+        print("[selftest] lag: swapIn=\(Fmt.rate(m.swapInRate)) swapOut=\(Fmt.rate(m.swapOutRate)) "
+              + "insight=\(HealthInsight.from(m)) heat=\(model.lag.report.heat.map { "level \($0.level ?? -1) speed \($0.speedLimit ?? -1)" } ?? "ok") "
+              + "refresh=\(model.lag.report.highRefreshHz.map { "\($0)Hz" } ?? "-") rebootDays=\(model.lag.report.rebootDays.map(String.init) ?? "-") "
+              + "verdict=\(LagItem.verdict(LagItem.build(sample: m, report: model.lag.report)))")
+        for t in model.lag.topCPU {
+            print("[selftest]   \(String(format: "%5.1f%%", t.cpu * 100))  \(t.name)")
+        }
+        for r in model.lag.report.runaways {
+            print("[selftest]   \(r.isActive ? "runaway" : "calmed"): \(r.name) \(Int(r.cpu * 100))% for \(Int(r.duration))s demoted=\(r.isDemoted)")
+        }
+        print("[selftest] autopilot: futileStreak=\(model.autopilot.futileStreak) suspended=\(model.autopilot.isSuspended) "
+              + "decision=\(model.autopilot.lastDecision)")
+
         // MEMORYBUTLER_SNAPSHOT_DIR=/path → 把每個分頁離屏渲染成 PNG（不需螢幕錄製權限即可檢視畫面）
         if let dir = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DIR"], !dir.isEmpty {
             renderSnapshots(to: dir)
         }
 
-        switch await model.engine.release(trigger: .manual) {
+        guard ProcessInfo.processInfo.environment["MEMORYBUTLER_SELFTEST_RELEASE"] == "1" else {
+            print("[selftest] release: not run (set MEMORYBUTLER_SELFTEST_RELEASE=1)")
+            exit(0)
+        }
+        switch await model.engine.release(trigger: .manual, recentSwapInRate: m.swapInRate) {
         case .released(let e):
             print("[selftest] release: reclaimed=\(Fmt.bytes(e.reclaimed)) ballast=\(Fmt.bytes(e.ballast ?? 0)) "
                   + "stop=\(e.stopReason?.rawValue ?? "-") swapDelta=\(Fmt.bytes(e.swapDelta ?? 0)) "
@@ -91,10 +134,19 @@ enum SelfTest {
         let dark = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DARK"] == "1"
         if dark { NSApp.appearance = NSAppearance(named: .darkAqua) }
         let suffix = dark ? "-dark" : ""
+        // MEMORYBUTLER_SNAPSHOT_DEMO=1 → 塞入示範的卡頓原因（失控程序、過熱、建議），檢視卡片排版；
+        // =2 另外讓第一個失控項目停在「等待 App 結束」狀態
+        switch ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DEMO"] {
+        case "1": AppModel.shared.lag.injectDemo()
+        case "2": AppModel.shared.lag.injectDemo(waiting: true)
+        default: break
+        }
 
         for tab in PopoverTab.allCases {
             render(PopoverView(initialTab: tab), name: "\(tab)\(suffix)", dir: dir, dark: dark)
         }
+        // 設定分頁的內容在 ScrollView 裡畫不出來，另外直接渲染本體
+        render(SettingsContent().padding(14).frame(width: 332), name: "settings-content\(suffix)", dir: dir, dark: dark)
         // 列表另外直接渲染（含兩段式確認狀態），並各渲染一次記憶體／CPU 排序
         let apps = AppModel.shared.apps
         for key in [AppUsageModel.SortKey.memory, .cpu] {
@@ -134,14 +186,14 @@ enum SelfTest {
 
 /// 選單列常駐標籤：晶片圖示 +（可選）即時使用率
 struct MenuBarLabel: View {
-    @ObservedObject private var monitor = AppModel.shared.monitor
+    @ObservedObject private var menuBar = AppModel.shared.menuBar
     @ObservedObject private var settings = AppModel.shared.settings
 
     var body: some View {
         if settings.showPercentInMenuBar {
             HStack(spacing: 3) {
                 Image(systemName: "memorychip")
-                Text(Fmt.percent(monitor.current.usedFraction))
+                Text("\(menuBar.percent)%")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .monospacedDigit()   // 71%→72% 時選單列不左右抖動
             }

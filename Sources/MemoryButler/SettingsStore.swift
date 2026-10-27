@@ -18,6 +18,10 @@ final class SettingsStore: ObservableObject {
     @Published var cooldownMinutes: Double { didSet { Self.d.set(cooldownMinutes, forKey: "cooldownMinutes") } }
     @Published var pauseOnLowPower: Bool { didSet { Self.d.set(pauseOnLowPower, forKey: "pauseOnLowPower") } }
 
+    // 卡頓偵測
+    @Published var lagAlerts: Bool { didSet { Self.d.set(lagAlerts, forKey: "lagAlerts") } }
+    @Published var autoDemote: Bool { didSet { Self.d.set(autoDemote, forKey: "autoDemote") } }
+
     // 外觀
     @Published var showPercentInMenuBar: Bool { didSet { Self.d.set(showPercentInMenuBar, forKey: "showPercentInMenuBar") } }
 
@@ -45,6 +49,8 @@ final class SettingsStore: ObservableObject {
             "scheduleMinutes": 60,
             "cooldownMinutes": 15.0,
             "pauseOnLowPower": true,
+            "lagAlerts": true,
+            "autoDemote": true,
             "showPercentInMenuBar": true,
             "appLanguage": "system",
             "autoUpdateCheck": true,
@@ -57,6 +63,8 @@ final class SettingsStore: ObservableObject {
         scheduleMinutes     = Self.d.integer(forKey: "scheduleMinutes")
         cooldownMinutes     = Self.d.double(forKey: "cooldownMinutes")
         pauseOnLowPower     = Self.d.bool(forKey: "pauseOnLowPower")
+        lagAlerts           = Self.d.bool(forKey: "lagAlerts")
+        autoDemote          = Self.d.bool(forKey: "autoDemote")
         showPercentInMenuBar = Self.d.bool(forKey: "showPercentInMenuBar")
         language = AppLanguage(rawValue: Self.d.string(forKey: "appLanguage") ?? "system") ?? .system
         autoUpdateCheck = Self.d.bool(forKey: "autoUpdateCheck")
