@@ -35,7 +35,7 @@ struct SystemSample {
     let systemPower: Double?        // W，整機
     let fanRPM: Double?
     let fanCount: Int
-    let thermalLevel: Int?          // Intel：machdep.xcpm.cpu_thermal_level 0～100
+    let thermalLevel: Int?          // Intel 私有原始讀值，僅供診斷，不當作百分比
     let thermalState: ProcessInfo.ThermalState
     let cpuSpeedLimit: Int?         // %，IOPMCopyCPUPowerStatus；< 100 = 正在降頻
     let battery: BatteryInfo?
@@ -46,9 +46,7 @@ struct SystemSample {
 
     /// 熱降頻中：任一訊號成立即算
     var isThrottling: Bool {
-        if let l = cpuSpeedLimit, l < 100 { return true }
-        if let t = thermalLevel, t >= 70 { return true }
-        return thermalState == .serious || thermalState == .critical
+        HeatReading(level: thermalLevel, speedLimit: cpuSpeedLimit, state: thermalState).isThrottling
     }
     /// 外接螢幕更新率 > 60Hz（Intel 內顯很吃力）
     var highRefreshExternal: DisplayInfo? {
@@ -166,7 +164,7 @@ enum SystemReader {
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.stride / MemoryLayout<integer_t>.stride)
         let kr = withUnsafeMutablePointer(to: &info) { ptr in
             ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(MemoryReader.hostPort, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
         guard kr == KERN_SUCCESS else { return nil }
@@ -249,7 +247,7 @@ enum SystemReader {
     static func sample(smc: SMCReader?, previousTicks: (busy: UInt64, total: UInt64)?) -> (SystemSample, (busy: UInt64, total: UInt64)?) {
         let ticks = cpuLoadTicks()
         var usage: Double?
-        if let t = ticks, let p = previousTicks, t.total > p.total {
+        if let t = ticks, let p = previousTicks, t.total > p.total, t.busy >= p.busy {
             usage = Double(t.busy - p.busy) / Double(t.total - p.total)
         }
         var load = [Double](repeating: 0, count: 3)
@@ -294,6 +292,8 @@ final class SystemMonitor: ObservableObject {
     private var ticks: (busy: UInt64, total: UInt64)?
     private var sampling = false
 
+    func resetCPUWindow() { ticks = nil }
+
     func refresh() async {
         guard !sampling else { return }
         sampling = true
@@ -319,7 +319,7 @@ enum SystemInsight: Equatable {
     static func from(_ s: SystemSample) -> SystemInsight {
         if s.isThrottling { return .throttling }
         if let u = s.cpuUsage, u >= 0.7 { return .busy }
-        if s.highRefreshExternal != nil, !s.isAppleSilicon { return .highRefresh }
+        if s.highRefreshExternal != nil, !s.isAppleSilicon, (s.cpuUsage ?? 0) >= 0.5 { return .highRefresh }
         return .healthy
     }
 

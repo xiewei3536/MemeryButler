@@ -178,6 +178,7 @@ struct SwitchToggle: View {
     let title: String
     @Binding var isOn: Bool
     var size: ControlSize = .small
+    @Environment(\.renderingSnapshot) private var renderingSnapshot
 
     init(_ title: String, isOn: Binding<Bool>, size: ControlSize = .small) {
         self.title = title
@@ -186,11 +187,22 @@ struct SwitchToggle: View {
     }
 
     var body: some View {
-        Toggle(title, isOn: $isOn)
-            .toggleStyle(.switch)
-            .controlSize(size)
-            .labelsHidden()
-            .accessibilityLabel(title)
+        if renderingSnapshot {
+            // AppKit 的 NSSwitch 無法由 ImageRenderer 畫出；快照改畫相同狀態的靜態開關。
+            Capsule()
+                .fill(isOn ? Color(nsColor: .systemGreen) : Color.primary.opacity(0.18))
+                .overlay(alignment: isOn ? .trailing : .leading) {
+                    Circle().fill(.white).padding(2)
+                }
+                .frame(width: size == .mini ? 26 : 32, height: size == .mini ? 14 : 18)
+                .accessibilityLabel(title)
+        } else {
+            Toggle(title, isOn: $isOn)
+                .toggleStyle(.switch)
+                .controlSize(size)
+                .labelsHidden()
+                .accessibilityLabel(title)
+        }
     }
 }
 
@@ -229,6 +241,7 @@ struct SettingRow<Content: View>: View {
                     Text(subtitle)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
@@ -414,5 +427,48 @@ struct TabBar: View {
         )
         // 只讓選取底色滑動；分頁內容本身不做動畫（面板會依內容調整大小，動畫會讓視窗抖動）
         .animation(.easeInOut(duration: 0.18), value: selection)
+    }
+}
+
+// MARK: - 離屏快照替代（正式介面仍使用原生 Link／Slider）
+
+struct SnapshotLink<Label: View>: View {
+    let destination: URL
+    @ViewBuilder var label: Label
+    @Environment(\.renderingSnapshot) private var renderingSnapshot
+
+    var body: some View {
+        if renderingSnapshot { label }
+        else { Link(destination: destination) { label } }
+    }
+}
+
+struct SettingSlider: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    @Environment(\.renderingSnapshot) private var renderingSnapshot
+
+    var body: some View {
+        if renderingSnapshot {
+            GeometryReader { g in
+                let fraction = min(1, max(0, (value - range.lowerBound) / (range.upperBound - range.lowerBound)))
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.15)).frame(height: 4)
+                    Capsule().fill(Theme.series).frame(width: g.size.width * fraction, height: 4)
+                    Circle().fill(.white).shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                        .frame(width: 14, height: 14)
+                        .offset(x: max(0, g.size.width - 14) * fraction)
+                }
+                .frame(height: 18)
+            }
+            .frame(height: 18)
+            .accessibilityLabel(title)
+        } else {
+            Slider(value: $value, in: range, step: step)
+                .controlSize(.small)
+                .accessibilityLabel(title)
+        }
     }
 }

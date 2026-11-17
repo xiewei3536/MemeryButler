@@ -7,18 +7,22 @@ import Combine
 final class AutoPilot: ObservableObject {
 
     /// 下一次允許自動釋放的時間（冷卻中則為未來時間）
-    @Published private(set) var nextAllowedAt: Date = .distantPast
+    @Published private(set) var nextAllowedAt: Date = .distantPast {
+        didSet { if !SelfTest.isEnabled { UserDefaults.standard.set(nextAllowedAt.timeIntervalSince1970, forKey: "autopilot.nextAllowedAt") } }
+    }
     /// 自適應倍率（釋放成效差 → 拉長冷卻，最多 4 倍）
-    @Published private(set) var backoffMultiplier: Double = 1.0
+    @Published private(set) var backoffMultiplier: Double = 1.0 {
+        didSet { if !SelfTest.isEnabled { UserDefaults.standard.set(backoffMultiplier, forKey: "autopilot.backoff") } }
+    }
     /// 最近一次自動決策說明（顯示在 UI）
     @Published private(set) var lastDecision: String = L("decision.monitoring")
     /// 最近一次決策的時間（nil = 尚無決策）
     @Published private(set) var lastDecisionAt: Date?
     /// 連續無效而暫停自動釋放，直到這個時間（nil = 沒有暫停）。寫進偏好設定：重開 App 不會忘記，也不會被延長
     @Published private(set) var suspendedUntil: Date? {
-        didSet { UserDefaults.standard.set(suspendedUntil?.timeIntervalSince1970 ?? 0, forKey: Self.suspendedKey) }
+        didSet { if !SelfTest.isEnabled { UserDefaults.standard.set(suspendedUntil?.timeIntervalSince1970 ?? 0, forKey: Self.suspendedKey) } }
     }
-    /// 累計評估次數（監督心跳的證據）。刻意不 @Published：每 2 秒變一次，
+    /// 累計評估次數（監督心跳的證據）。刻意不 @Published：每次取樣變一次，
     /// 發布出去會讓關著的面板也跟著重算；面板看得見時由 PanelFeed 帶動重繪
     private(set) var evaluationCount: Int = 0
 
@@ -36,7 +40,7 @@ final class AutoPilot: ObservableObject {
     private var lastScheduledRun: Date = Date()
     /// 目前連續幾次自動釋放沒效果（同樣寫進偏好設定；1.4 第一次啟動時由歷史紀錄推回）
     private(set) var futileStreak = 0 {
-        didSet { UserDefaults.standard.set(futileStreak, forKey: Self.streakKey) }
+        didSet { if !SelfTest.isEnabled { UserDefaults.standard.set(futileStreak, forKey: Self.streakKey) } }
     }
     private static let streakKey = "autopilot.futileStreak"
     private static let suspendedKey = "autopilot.suspendedUntil"
@@ -72,10 +76,18 @@ final class AutoPilot: ObservableObject {
             lastDecision = L("decision.suspended")
             lastDecisionAt = Date()
         }
-        d.set(futileStreak, forKey: Self.streakKey)
-        d.set(suspendedUntil?.timeIntervalSince1970 ?? 0, forKey: Self.suspendedKey)
+        let next = d.double(forKey: "autopilot.nextAllowedAt")
+        if next.isFinite, next > 0 {
+            nextAllowedAt = min(Date(timeIntervalSince1970: next), Date().addingTimeInterval(24 * 3600))
+        }
+        let backoff = d.double(forKey: "autopilot.backoff")
+        backoffMultiplier = backoff.isFinite ? min(4, max(1, backoff)) : 1
+        if !SelfTest.isEnabled {
+            d.set(futileStreak, forKey: Self.streakKey)
+            d.set(suspendedUntil?.timeIntervalSince1970 ?? 0, forKey: Self.suspendedKey)
+        }
 
-        // 每次取樣都評估一次（2 秒節奏）
+        // 每次取樣都評估一次（面板可見／記憶體吃緊時 2 秒，其餘降頻）
         monitor.$current
             .dropFirst()
             .sink { [weak self] sample in self?.evaluate(sample) }
@@ -84,7 +96,7 @@ final class AutoPilot: ObservableObject {
         // 核心壓力事件：即時反應，不等輪詢
         monitor.pressureEvent
             .sink { [weak self] level in
-                guard let self, level != .normal else { return }
+                guard let self, self.settings.triggerOnPressure, level != .normal else { return }
                 self.attempt(trigger: .pressure, reason: LF("decision.reason.pressureSignal", level.label))
             }
             .store(in: &cancellables)
@@ -116,7 +128,7 @@ final class AutoPilot: ObservableObject {
 
     private func evaluate(_ sample: MemorySample) {
         evaluationCount += 1
-        guard settings.autoEnabled, !engine.isRunning else { return }
+        guard !SelfTest.isEnabled, settings.autoEnabled, !engine.isRunning else { return }
 
         // 暫停中：記憶體明顯變寬裕（關了 App 或重開機）就提早恢復；
         // 時間到自然恢復則只留「一次機會」——再白跑一次就立刻再暫停，不必再白跑三次
@@ -173,10 +185,16 @@ final class AutoPilot: ObservableObject {
         }
     }
 
+    /// 睡眠後重新起算持續門檻與排程，不把睡眠時間當成持續吃緊，也不補跑睡著時的排程。
+    func resetAfterWake() {
+        thresholdBreachedSince = nil
+        lastScheduledRun = Date()
+    }
+
     // MARK: - 執行（含冷卻與守門）
 
     private func attempt(trigger: ReleaseTrigger, reason: String) {
-        guard settings.autoEnabled, !engine.isRunning else { return }
+        guard !SelfTest.isEnabled, settings.autoEnabled, !engine.isRunning else { return }
 
         // 連續無效而暫停：不出手（排程也照樣記下這一輪，避免恢復後立刻補跑）
         if isSuspended {
@@ -191,7 +209,7 @@ final class AutoPilot: ObservableObject {
             return
         }
 
-        // 過熱守門：風扇已經在狂轉，別再添柴（手動釋放不受此限）
+        // 過熱守門：風扇已經在狂轉，別再添柴（引擎也會保護手動釋放）
         switch ProcessInfo.processInfo.thermalState {
         case .serious, .critical:
             decide(L("decision.thermal"))

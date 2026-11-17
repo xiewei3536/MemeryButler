@@ -44,6 +44,20 @@ enum L10n {
     }
 
     static let table: [String: [String]] = [
+        "protect.title": ["Smoothness first — no forced cleaning", "流畅优先，不强制清理", "順暢優先，不強制清理"],
+
+        "protect.apps": ["Review apps", "查看 App", "查看 App"],
+
+        "protect.help": ["Review memory and CPU usage. No apps are closed automatically.", "查看内存与 CPU 占用，不会自动关闭 App。", "查看記憶體與 CPU 佔用，不會自動關閉 App。"],
+
+        "btn.skipped.thermal": ["Mac is running hot — avoiding extra work", "热压力偏高，先不增加负担", "熱壓力偏高，先不增加負擔"],
+
+        "decision.skip.thermal": ["Thermal pressure is high; leaving memory management to macOS.", "热压力偏高，交给系统管理内存。", "熱壓力偏高，交給系統管理記憶體。"],
+
+        "update.invalidRelease": ["The release is incomplete or is not a trusted stable update.", "正式版本信息不完整或来源不受信任。", "正式版本資訊不完整或來源不受信任。"],
+
+        "update.verificationFailed": ["Update verification failed. The installed app has not been replaced.", "更新验证失败，未替换已安装的 App。", "更新驗證失敗，未替換已安裝的 App。"],
+
         // 分頁與框架
         "app.name":        ["MemoryButler", "内存管家", "記憶體管家"],
         "tab.overview":    ["Overview", "总览", "總覽"],
@@ -171,8 +185,8 @@ enum L10n {
         "insight.healthy":            ["Memory is comfortable — everything's smooth", "内存充足，运行顺畅", "記憶體充足，運作順暢"],
         "insight.compressing.title":  ["Memory is getting tight", "内存开始吃紧", "記憶體開始吃緊"],
         "insight.compressing.advice": ["macOS is compressing memory to keep up. Quitting idle apps helps the most.", "系统正靠压缩内存撑着，关闭闲置 App 最有帮助。", "系統正靠壓縮記憶體撐著，關閉閒置 App 最有幫助。"],
-        "insight.swapping.title":     ["Out of memory — using the disk instead", "内存不足，已在用磁盘顶替", "記憶體不夠，已在用磁碟頂替"],
-        "insight.swapping.advice":    ["This is why things feel slow. Quitting the biggest apps is the real fix — freeing can't help here.", "这就是变卡的原因。关掉最耗内存的 App 才是真正的解法，释放帮不上忙。", "這就是變卡的原因。關掉最耗記憶體的 App 才是真正的解法，釋放幫不上忙。"],
+        "insight.swapping.title": ["Some app memory is on disk", "部分 App 内存已换到磁盘", "部分 App 記憶體已換到磁碟"],
+        "insight.swapping.advice": ["Switching back may take longer. Save your work and quit unused heavy apps; forced cleaning is not a fix.", "切回这些 App 可能需要等待；先保存工作，再关闭不用的大型 App，别反复清理内存。", "切回這些 App 可能需要等待；先儲存工作，再關閉不用的大型 App，別反覆清理記憶體。"],
         "insight.critical.title":     ["Memory is critically low", "内存极度紧张", "記憶體極度緊繃"],
         "insight.critical.advice":    ["Quit a few apps right now.", "请立即关闭几个 App。", "請立即關閉幾個 App。"],
         "insight.seeApps":            ["See which apps", "看看是哪些 App", "看看是哪些 App"],
@@ -210,8 +224,7 @@ enum L10n {
         "sys.power":        ["CPU Power", "CPU 功耗", "CPU 功耗"],
         "sys.fan":          ["Fans", "风扇", "風扇"],
         "sys.fan.value":    ["%d rpm", "%d rpm", "%d rpm"],
-        "sys.throttle":     ["Heat Pressure", "热压力等级", "熱壓力等級"],
-        "sys.throttle.value":     ["%d · speed %d%%", "%d · 速度 %d%%", "%d · 速度 %d%%"],
+        "sys.throttle": ["CPU Limit", "CPU 限制", "CPU 限制"],
         "sys.throttle.speedOnly": ["Speed %d%%", "速度 %d%%", "速度 %d%%"],
         "sys.throttle.none":      ["None", "无", "無"],
         "sys.throttle.hot":       ["Yes — running hot", "有，温度偏高", "有，溫度偏高"],
@@ -219,7 +232,7 @@ enum L10n {
         "sys.battery.cycles":     ["Battery cycles", "电池循环", "電池循環"],
         "sys.battery.cycles.value": ["%d", "%d 次", "%d 次"],
         "sys.display":            ["Display", "显示器", "螢幕"],
-        "sys.display.hint":       ["Intel graphics struggle above 60Hz — 60Hz is smoother and cooler", "Intel 内显在高刷新率下很吃力，改 60Hz 更顺也更凉", "Intel 內顯在高更新率下很吃力，改 60Hz 更順也更涼"],
+        "sys.display.hint": ["Higher refresh rates can use more GPU power. If heat is a problem, try a lower rate; motion will be less fluid.", "高刷新率可能增加图形功耗；若过热可试着调低，但动态流畅度也会降低。", "高更新率可能增加圖形功耗；若過熱可試著調低，但動態流暢度也會降低。"],
         "sys.systemPower":        ["Whole Mac", "整机功耗", "整機功耗"],
         "sys.uptime":             ["Uptime", "开机至今", "開機至今"],
         "sys.agents":             ["Third-party background services", "第三方后台服务", "第三方背景服務"],
@@ -227,8 +240,8 @@ enum L10n {
         "sys.agents.open":        ["Login Items…", "登录项…", "登入項目…"],
         "fmt.daysHours":          ["%dd %dh", "%d 天 %d 小时", "%d 天 %d 小時"],
         "fmt.hoursMinutes":       ["%dh %dm", "%d 小时 %d 分", "%d 小時 %d 分"],
-        "insight.sys.throttling.title":  ["CPU is throttling from heat", "CPU 正在热降频", "CPU 正在熱降頻"],
-        "insight.sys.throttling.advice": ["This is what makes an old MacBook feel slow. Lower background load (Apps tab, sort by CPU), clear the vents, and run external displays at 60Hz.", "这就是老 MacBook 变卡的原因。降低后台负载（「应用」页按 CPU 排序）、清理散热孔、外接屏幕改 60Hz。", "這就是老 MacBook 變卡的原因。降低背景負載（「App」分頁依 CPU 排序）、清理散熱孔、外接螢幕改 60Hz。"],
+        "insight.sys.throttling.title": ["CPU performance is being limited", "CPU 效能正受到限制", "CPU 效能正受到限制"],
+        "insight.sys.throttling.advice": ["Reduce unnecessary background work (Apps tab, sort by CPU). Check ventilation; a lower display refresh rate is an optional power trade-off.", "到「应用」页按 CPU 排序，减少不必要的后台工作并检查通风；是否调低屏幕刷新率由你决定。", "到「App」分頁依 CPU 排序，減少不必要的背景工作並檢查通風；是否調低螢幕更新率由你決定。"],
         "insight.sys.busy.title":        ["CPU is very busy", "CPU 很忙", "CPU 很忙"],
         "insight.sys.busy.advice":       ["See who's using it: Apps tab, sort by CPU.", "到「应用」页按 CPU 排序看看是谁。", "到「App」分頁依 CPU 排序看看是誰。"],
         "insight.sys.highRefresh.title": ["External display at %dHz", "外接屏幕 %dHz", "外接螢幕 %dHz"],
@@ -237,7 +250,7 @@ enum L10n {
         "help.sys.temp":     ["CPU package temperature from the SMC sensor", "SMC 感测器读到的 CPU 封装温度", "SMC 感測器讀到的 CPU 封裝溫度"],
         "help.sys.power":    ["CPU package power draw", "CPU 封装功耗", "CPU 封裝功耗"],
         "help.sys.fan":      ["Fastest fan; near max means the Mac is fighting heat", "最快的一颗风扇；接近上限表示正在拼命散热", "最快的一顆風扇；接近上限表示正在拼命散熱"],
-        "help.sys.throttle": ["macOS slows the CPU when it runs too hot. Level 0–100 is the power manager's heat pressure; speed < 100% means it is actively slowing down", "过热时系统会主动降低 CPU 速度。等级 0–100 是电源管理的热压力，速度 < 100% 表示正在降频", "過熱時系統會主動降低 CPU 速度。等級 0～100 是電源管理的熱壓力，速度 < 100% 表示正在降頻"],
+        "help.sys.throttle": ["Uses the macOS CPU speed limit and public thermal state. Undocumented raw sensor values are not treated as percentages or proof of throttling.", "依据系统 CPU 速度限制与公开热状态判断；不把未公开的原始感测值当作百分比或降频证据。", "依據系統 CPU 速度限制與公開熱狀態判斷；不把未公開的原始感測值當作百分比或降頻證據。"],
         "help.sys.battery":  ["Current maximum capacity vs. design capacity, and charge cycles", "目前最大容量占设计容量的比例，以及循环次数", "目前最大容量佔設計容量的比例，以及循環次數"],
         "help.sys.agents":   ["Launch agents and daemons from third parties that start at login. Fewer is snappier — review them in System Settings", "第三方开机即启动的代理与守护进程，越少越快；到系统设置里检视", "第三方開機即啟動的代理與守護程序，越少越快；到系統設定裡檢視"],
 
@@ -267,16 +280,15 @@ enum L10n {
         "lag.card.smooth":    ["Running smoothly", "运行顺畅", "運作順暢"],
         "lag.smooth.detail":  ["No runaway apps, no swapping, CPU at full speed", "没有失控程序、没在换页、CPU 全速运行", "沒有失控程式、沒在換頁、CPU 全速運作"],
         "lag.thrashing.detail": ["Reading back from disk at %@ — quit unused apps", "正以 %@ 从磁盘读回，关掉不用的 App", "正以 %@ 從磁碟讀回，關掉不用的 App"],
-        "lag.swap.detail":    ["%@ of app memory is parked on disk — switching back to those apps stutters", "已有 %@ 放在磁盘，切回那些 App 会卡一下", "已有 %@ 放在磁碟，切回那些 App 會卡一下"],
+        "lag.swap.detail": ["%@ of app memory is on disk; switching back may take longer", "已有 %@ App 内存放在磁盘，切回时可能需要等待", "已有 %@ App 記憶體放在磁碟，切回時可能需要等待"],
         "lag.runaway.title":  ["%@ is using %d%% CPU", "%@ 占用 %d%% CPU", "%@ 佔用 %d%% CPU"],
         "lag.runaway.detail": ["For %d min — heats the Mac and slows everything", "已持续 %d 分钟，让 Mac 变热、变慢", "已持續 %d 分鐘，讓 Mac 變熱、變慢"],
         "lag.runaway.demoted": ["Moved to background priority — no longer competes with your apps", "已降到后台优先级，不再跟你抢 CPU", "已降到背景優先權，不再跟你搶 CPU"],
-        "lag.heat.title":     ["CPU is hot and slowing down", "CPU 过热，正在降速", "CPU 過熱，正在降速"],
-        "lag.heat.detail":    ["Heat pressure %d/100 — fewer background hogs cools it down", "热压力 %d/100，减少后台大户可以降温", "熱壓力 %d/100，減少背景大戶可以降溫"],
+        "lag.heat.title": ["CPU performance is under pressure", "CPU 效能受到限制", "CPU 效能受到限制"],
         "lag.heat.detail.speed": ["Down to %d%% speed — fewer background hogs cools it down", "只剩 %d%% 速度，减少后台大户可以降温", "只剩 %d%% 速度，減少背景大戶可以降溫"],
         "lag.heat.detail.generic": ["macOS reports the Mac is running hot", "系统回报温度偏高", "系統回報溫度偏高"],
-        "lag.tip.refresh":    ["Display at %dHz — 60Hz runs smoother and cooler", "外接屏幕 %dHz，改 60Hz 更顺更凉", "外接螢幕 %dHz，改 60Hz 更順更涼"],
-        "lag.tip.reboot":     ["Up %d days — restarting clears %@ of swap", "已开机 %d 天，重开机可清掉 %@ 交换空间", "已開機 %d 天，重開機可清掉 %@ 交換空間"],
+        "lag.tip.refresh": ["External display: %dHz · optional power trade-off", "外接屏幕 %dHz，可按需权衡功耗", "外接螢幕 %dHz，可依需求權衡功耗"],
+        "lag.tip.reboot": ["Up %d days · a restart can reset %@ of swap; save work first", "已开机 %d 天，可重启重置 %@ 交换空间；请先保存工作", "已開機 %d 天，可重開機重置 %@ 交換空間；請先儲存工作"],
         "lag.action.demote":  ["Lower priority", "降到后台", "降到背景"],
         "lag.action.restore": ["Restore", "恢复", "恢復"],
         "lag.action.restart": ["Restart", "重新启动", "重新啟動"],
@@ -313,7 +325,7 @@ enum L10n {
         "set.section.auto":    ["Auto-Free", "自动释放", "自動釋放"],
         "set.section.general": ["General", "通用", "一般"],
         "set.autoDemote.title": ["Calm runaway background services", "自动压制失控的后台服务", "自動壓制失控的背景服務"],
-        "set.autoDemote.sub":   ["After 5 min at high CPU, move them to background priority; restored once idle. Never touches Dock apps, calls or remote desktop", "持续 5 分钟占满 CPU 就降到后台优先级，闲下来自动恢复；不碰 Dock 上的 App、通话与远程桌面", "持續 5 分鐘佔滿 CPU 就降到背景優先權，閒下來自動恢復；不碰 Dock 上的 App、通話與遠端桌面"],
+        "set.autoDemote.sub": ["After 5 minutes of sustained load; protects foreground apps and apps used in the last 2 minutes. Never quits apps.", "持续高占用 5 分钟才处理；保护前台及最近 2 分钟用过的 App，不会自动退出。", "持續高佔用 5 分鐘才處理；保護前景及最近 2 分鐘用過的 App，不會自動結束。"],
         "set.lagAlerts.title":  ["Alert me about runaway apps", "失控程序提醒", "失控程式提醒"],
         "set.lagAlerts.sub":    ["Notify when something hogs the CPU for 10 minutes", "某个程序连续 10 分钟占满 CPU 时通知", "某個程式連續 10 分鐘佔滿 CPU 時通知"],
         "hist.effective":       ["Effective", "有效次数", "有效次數"],

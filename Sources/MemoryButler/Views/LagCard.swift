@@ -96,8 +96,6 @@ struct LagItem: Identifiable {
             let detail: String
             if let limit = h.speedLimit, limit < 100 {
                 detail = LF("lag.heat.detail.speed", limit)
-            } else if let level = h.level {
-                detail = LF("lag.heat.detail", level)
             } else {
                 detail = L("lag.heat.detail.generic")
             }

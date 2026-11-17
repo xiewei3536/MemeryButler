@@ -7,18 +7,21 @@ APP="MemoryButler"
 DISPLAY_NAME="記憶體管家"
 BUNDLE_ID="com.bowei.memorybutler"
 DIST="dist"
+JOBS="${JOBS:-2}" # 8GB Mac 預設不讓編譯佔滿所有核心
+[[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "JOBS must be a positive integer" >&2; exit 2; }
 
 # 版本號優先順序：環境變數 VERSION → 目前 commit 的 tag（CI 由 tag 觸發）→ 下方預設值。
 # 一定要與 release tag 一致：App 內建更新是用這個數字和 GitHub 最新 tag 比較，
 # 若打包出來的版本落後 tag，使用者會被「新版本可用」無限循環提示。
 # 只有在工作樹乾淨時才採用 tag（有未提交的修改就不是那個 release 了）
 TAG_VERSION=""
-if git diff-index --quiet HEAD -- 2>/dev/null; then
+if [[ -z "$(git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
     TAG_VERSION="$(git describe --tags --exact-match 2>/dev/null || true)"
 fi
 VERSION="${VERSION:-${TAG_VERSION}}"
 VERSION="${VERSION#v}"
-VERSION="${VERSION:-1.4.1}"
+VERSION="${VERSION:-1.5.0}"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must be a stable x.y.z version" >&2; exit 2; }
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 echo "▸ 版本 $VERSION (build $BUILD_NUMBER)"
 
@@ -26,14 +29,14 @@ echo "▸ 編譯 Universal Binary (x86_64 + arm64)…"
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
-if swift build -c release --arch x86_64 --arch arm64 2>/dev/null; then
+if swift build -c release --jobs "$JOBS" --arch x86_64 --arch arm64; then
     UNIVERSAL="$(swift build -c release --arch x86_64 --arch arm64 --show-bin-path)/$APP"
 else
     echo "  （合併模式不支援，改用分別編譯 + lipo）"
-    swift build -c release --triple x86_64-apple-macosx
-    BIN_X86="$(swift build -c release --triple x86_64-apple-macosx --show-bin-path)/$APP"
-    swift build -c release --triple arm64-apple-macosx
-    BIN_ARM="$(swift build -c release --triple arm64-apple-macosx --show-bin-path)/$APP"
+    swift build -c release --jobs "$JOBS" --triple x86_64-apple-macosx
+    BIN_X86="$(swift build -c release --jobs "$JOBS" --triple x86_64-apple-macosx --show-bin-path)/$APP"
+    swift build -c release --jobs "$JOBS" --triple arm64-apple-macosx
+    BIN_ARM="$(swift build -c release --jobs "$JOBS" --triple arm64-apple-macosx --show-bin-path)/$APP"
     UNIVERSAL="$DIST/$APP-universal"
     lipo -create "$BIN_X86" "$BIN_ARM" -output "$UNIVERSAL"
 fi

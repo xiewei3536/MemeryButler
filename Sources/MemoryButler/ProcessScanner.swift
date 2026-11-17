@@ -55,15 +55,14 @@ enum ProcessScanner {
         let pid: pid_t
         let owner: Int          // App 編號；-1 = 不屬於任何 App（背景與系統程序）
         let cpuTime: UInt64     // 累計 CPU 時間（ns）
+        let startTime: UInt64   // 程序身分：PID 相同但啟動時間不同，不可相減
     }
 
     struct ScanOutput: Sendable {
         var footprints: [UInt64]
         var counts: [Int]
-        var cpuTimes: [UInt64]           // 累計 CPU 時間（ns），依 App 加總
         var otherFootprint: UInt64 = 0
         var otherCount: Int = 0
-        var otherCpuTime: UInt64 = 0
         var selfFootprint: UInt64 = 0
         var procs: [ProcCPU] = []        // 每個讀得到的程序（不含自己）
     }
@@ -100,8 +99,7 @@ enum ProcessScanner {
     /// 背景執行緒：列舉所有 pid、讀取實體佔用、歸併到 App（實測 650 個程序約 5ms）
     nonisolated static func scan(_ input: ScanInput) -> ScanOutput {
         var out = ScanOutput(footprints: Array(repeating: 0, count: input.pids.count),
-                             counts: Array(repeating: 0, count: input.pids.count),
-                             cpuTimes: Array(repeating: 0, count: input.pids.count))
+                             counts: Array(repeating: 0, count: input.pids.count))
 
         var byPid: [pid_t: Int] = [:]
         for (i, pid) in input.pids.enumerated() { byPid[pid] = i }
@@ -117,7 +115,7 @@ enum ProcessScanner {
         var pathBuf = [CChar](repeating: 0, count: Int(PATH_MAX))
         out.procs.reserveCapacity(Int(count))
 
-        for pid in pids.prefix(Int(count)) where pid > 0 {
+        for pid in pids.prefix(min(Int(count), pids.count)) where pid > 0 {
             // 其他使用者的程序與核心讀不到（EPERM），那些本來就不是使用者能關的
             guard let usage = MemoryReader.usage(of: pid) else { continue }
             let fp = usage.footprint
@@ -137,15 +135,13 @@ enum ProcessScanner {
                 }
             }
 
-            out.procs.append(ProcCPU(pid: pid, owner: owner ?? -1, cpuTime: cpu))
+            out.procs.append(ProcCPU(pid: pid, owner: owner ?? -1, cpuTime: cpu, startTime: usage.startTime))
             if let o = owner {
                 out.footprints[o] &+= fp
                 out.counts[o] += 1
-                out.cpuTimes[o] &+= cpu
             } else {
                 out.otherFootprint &+= fp
                 out.otherCount += 1
-                out.otherCpuTime &+= cpu
             }
         }
         return out
@@ -227,7 +223,7 @@ final class AppUsageModel: ObservableObject {
     private let topLimit = 8
     private var allRows: [AppMemoryUsage] = []
     /// 上一次掃描各 App 的累計 CPU 時間，用來算這段時間的佔用率
-    private var lastCpu: [String: (time: UInt64, date: Date)] = [:]
+    private var cpuTracker = ProcessCPUTracker()
 
     func refresh() async {
         guard !scanning else { return }
@@ -242,29 +238,26 @@ final class AppUsageModel: ObservableObject {
         )
         let out = await Task.detached(priority: .utility) { ProcessScanner.scan(input) }.value
 
-        let now = Date()
-        var nextCpu: [String: (time: UInt64, date: Date)] = [:]
-        func fraction(id: String, cpuTime: UInt64) -> Double? {
-            nextCpu[id] = (cpuTime, now)
-            guard let prev = lastCpu[id], cpuTime >= prev.time else { return nil }
-            let wall = now.timeIntervalSince(prev.date)
-            guard wall > 0.5 else { return nil }
-            return Double(cpuTime - prev.time) / 1e9 / wall
+        let rates = cpuTracker.rates(for: out.procs, at: ProcessInfo.processInfo.systemUptime)
+        var ownerCPU: [Int: Double] = [:]
+        if let rates {
+            for p in out.procs { ownerCPU[p.owner, default: 0] += rates[p.pid] ?? 0 }
         }
 
         var result: [AppMemoryUsage] = []
-        var otherFootprint = out.otherFootprint, otherCount = out.otherCount, otherCpu = out.otherCpuTime
+        var otherFootprint = out.otherFootprint, otherCount = out.otherCount
+        var otherCPU = ownerCPU[-1] ?? 0
         for (i, app) in apps.enumerated() where out.footprints[i] > 0 {
             // Apple 的選單列小元件（通用控制、Spotlight 的輔助…）沒有讓使用者操作的意義，併入背景程序
             if app.isSystem && app.isAccessory {
-                otherFootprint &+= out.footprints[i]; otherCount += out.counts[i]; otherCpu &+= out.cpuTimes[i]
+                otherFootprint &+= out.footprints[i]; otherCount += out.counts[i]; otherCPU += ownerCPU[i] ?? 0
                 continue
             }
             let id = "pid-\(app.pid)"
             result.append(AppMemoryUsage(
                 id: id, name: app.name, icon: app.icon,
                 footprint: out.footprints[i], processCount: out.counts[i], app: app.app,
-                cpuFraction: fraction(id: id, cpuTime: out.cpuTimes[i]),
+                cpuFraction: rates == nil ? nil : ownerCPU[i] ?? 0,
                 isSystem: app.isSystem
             ))
         }
@@ -272,9 +265,8 @@ final class AppUsageModel: ObservableObject {
         other = otherCount > 0
             ? AppMemoryUsage(id: "other", name: L("apps.other"), icon: nil,
                              footprint: otherFootprint, processCount: otherCount, app: nil,
-                             cpuFraction: fraction(id: "other", cpuTime: otherCpu), isSystem: true)
+                             cpuFraction: rates == nil ? nil : otherCPU, isSystem: true)
             : nil
-        lastCpu = nextCpu
         selfFootprint = out.selfFootprint
         resort()
         hasScanned = true

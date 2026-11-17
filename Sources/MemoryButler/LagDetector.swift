@@ -8,7 +8,7 @@ import UserNotifications
 //
 // 記憶體以外，老 Mac 變卡最常見的原因是「某個程序默默吃滿 CPU」：卡住的同步程式（OneDrive、
 // Dropbox）、失控的網頁分頁、Siri 建議（suggestd）……它們讓 CPU 變熱 → 降頻 → 前景 App 跟著卡。
-// 這裡每 10 秒用 proc_pid_rusage 算一次各程序的 CPU（只讀得到同一使用者的程序，
+// 這裡每 10～30 秒用 proc_pid_rusage 算一次各程序的 CPU（只讀得到同一使用者的程序，
 // 也正好是使用者處理得了的），持續 3 分鐘佔用超過半顆核心就列為「失控」，並提供：
 //   • 降到背景優先權：setpriority(PRIO_DARWIN_PROCESS, PRIO_DARWIN_BG)，免 root、可還原。
 //     實測（8GB Intel MBP）launchd 生的空迴圈被自動降級後優先權 20→4、CPU 96%→27%；
@@ -38,13 +38,12 @@ struct Runaway: Identifiable, Equatable {
 
 /// CPU 熱壓力讀數（與「系統」分頁同一套判斷）
 struct HeatReading: Equatable {
-    let level: Int?             // Intel：machdep.xcpm.cpu_thermal_level 0～100
+    let level: Int?             // Intel 私有原始讀值，僅供診斷，不拿來推斷熱壓力或降頻
     let speedLimit: Int?        // %；< 100 = 正在降速
     let state: ProcessInfo.ThermalState
 
     var isThrottling: Bool {
         if let l = speedLimit, l < 100 { return true }
-        if let t = level, t >= 70 { return true }
         return state == .serious || state == .critical
     }
     /// 明顯降速：速度被壓到 80% 以下，或系統回報嚴重過熱
@@ -102,10 +101,10 @@ final class LagDetector: ObservableObject {
         "obsproject", "record", "capture", "cleanshot", "loom", "screenflow", "camtasia",
         "vpn", "proxy", "clash", "surge", "v2ray", "wireguard", "tailscale", "docker",
     ]
-    /// 可以自動降級的 Apple 背景工作者（只做索引、建議、分析、背景下載，不在使用者等待的路徑上）
+    /// 可以自動降級的 Apple 背景工作者（只做索引、建議、分析；下載程序可能有使用者正在等待，不在此名單）
     private static let autoDemotable: Set<String> = [
         "suggestd", "mdworker", "mdworker_shared", "corespotlightd", "spotlightknowledged",
-        "photoanalysisd", "mediaanalysisd", "nsurlsessiond",
+        "photoanalysisd", "mediaanalysisd",
     ]
 
     /// 單一群組的 CPU 追蹤狀態（純值型別：自我檢查可以直接餵假資料驗證）
@@ -142,7 +141,7 @@ final class LagDetector: ObservableObject {
     private let settings: SettingsStore
     private let monitor: MemoryMonitor
     private var tracks: [String: Track] = [:]
-    private var lastCpu: [pid_t: UInt64] = [:]
+    private var cpuTracker = ProcessCPUTracker()
     private var lastTick: Date?
     private var demoted: [String: Demotion] = [:]
     private var idleSince: [String: Date] = [:]
@@ -153,6 +152,12 @@ final class LagDetector: ObservableObject {
     private var restartTasks: [String: Task<Void, Never>] = [:]
     private var timer: DispatchSourceTimer?
     private var ticking = false
+    private var suspended = false
+    private var scanGeneration = 0
+    private var visible = false
+    private var lowPower = false
+    private(set) var samplingInterval: TimeInterval = 15 * timeScale
+    private var foregroundProtection = ForegroundProtection()
     private var observers: [NSObjectProtocol] = []
     private var cancellables = Set<AnyCancellable>()
     private var lastDisplayCheck: Date = .distantPast
@@ -186,13 +191,9 @@ final class LagDetector: ObservableObject {
 
     func start() {
         guard timer == nil else { return }
-        recoverAfterCrash()
-
-        let t = DispatchSource.makeTimerSource(queue: .main)
-        t.schedule(deadline: .now() + 1, repeating: Self.interval, leeway: .milliseconds(Int(Self.interval * 100)))
-        t.setEventHandler { [weak self] in self?.scheduleTick() }
-        t.resume()
-        timer = t
+        if !SelfTest.isEnabled { recoverAfterCrash() }
+        foregroundProtection.observe(NSWorkspace.shared.frontmostApplication?.processIdentifier, at: Date())
+        scheduleTimer(initial: true)
 
         // 被降級的 App 一回到前景就恢復正常優先權：只壓背景，不拖慢正在用的東西
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(
@@ -200,8 +201,52 @@ final class LagDetector: ObservableObject {
         ) { [weak self] note in
             guard let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
                 .processIdentifier else { return }
-            DispatchQueue.main.async { [weak self] in self?.restore(groupId: "app-\(pid)") }
+            DispatchQueue.main.async { [weak self] in
+                self?.foregroundProtection.observe(pid, at: Date())
+                self?.restore(groupId: "app-\(pid)")
+            }
         })
+    }
+
+    func configure(visible: Bool, lowPower: Bool) {
+        self.visible = visible
+        self.lowPower = lowPower
+        scheduleTimer()
+    }
+
+    private func scheduleTimer(initial: Bool = false) {
+        guard !suspended else { return }
+        let interval = MonitoringPolicy.processInterval(visible: visible, lowPower: lowPower) * Self.timeScale
+        guard timer == nil || interval != samplingInterval else { return }
+        samplingInterval = interval
+        timer?.cancel()
+        let t = DispatchSource.makeTimerSource(queue: .main)
+        t.schedule(deadline: .now() + (initial ? 1 : interval), repeating: interval,
+                   leeway: .milliseconds(Int(interval * 100)))
+        t.setEventHandler { [weak self] in self?.scheduleTick() }
+        t.resume()
+        timer = t
+    }
+
+    func suspend() {
+        suspended = true
+        scanGeneration += 1
+        timer?.cancel()
+        timer = nil
+        cpuTracker.reset()
+        lastTick = nil
+        tracks.removeAll()
+        idleSince.removeAll()
+        topCPU = []
+        restoreAll()
+        report = LagReport()
+    }
+
+    func resume() {
+        suspended = false
+        appsCache = nil
+        lastDisplayCheck = .distantPast
+        scheduleTimer(initial: true)
     }
 
     private func scheduleTick() {
@@ -211,8 +256,9 @@ final class LagDetector: ObservableObject {
     // MARK: 取樣
 
     func tick() async {
-        guard !ticking else { return }
+        guard !ticking, !suspended else { return }
         ticking = true
+        let generation = scanGeneration
         defer { ticking = false }
 
         let runningPids = NSWorkspace.shared.runningApplications.map(\.processIdentifier)
@@ -229,28 +275,34 @@ final class LagDetector: ObservableObject {
             selfPid: ProcessInfo.processInfo.processIdentifier
         )
         let out = await Task.detached(priority: .utility) { ProcessScanner.scan(input) }.value
+        guard generation == scanGeneration, !suspended else { return }
         let now = Date()
         let dt = lastTick.map { now.timeIntervalSince($0) } ?? 0
         lastTick = now
 
-        // 依群組加總這段時間用掉的 CPU（新出現的程序先建立基準，下一輪才算）
-        var groupNs: [String: UInt64] = [:]
+        // 先逐程序核對啟動時間、取 CPU 差額，才歸併群組；輔助程序新生／結束不會製造假尖峰。
+        let rates = cpuTracker.rates(for: out.procs, at: ProcessInfo.processInfo.systemUptime,
+                                     maxGap: max(1, samplingInterval * 3))
+        var measuredCPU: [String: Double] = [:]
         var info: [String: GroupInfo] = [:]
-        var nextCpu: [pid_t: UInt64] = [:]
-        nextCpu.reserveCapacity(out.procs.count)
         for p in out.procs {
-            nextCpu[p.pid] = p.cpuTime
             let key = p.owner >= 0 ? "app-\(apps[p.owner].pid)" : "proc-\(p.pid)"
             if info[key] == nil { info[key] = GroupInfo(pids: [], app: p.owner >= 0 ? apps[p.owner] : nil) }
             info[key]!.pids.append(p.pid)
-            if let prev = lastCpu[p.pid], p.cpuTime >= prev { groupNs[key, default: 0] &+= p.cpuTime - prev }
+            measuredCPU[key, default: 0] += rates?[p.pid] ?? 0
         }
-        lastCpu = nextCpu
         groupInfo = info
 
         // 降級過的群組：群組消失（App 結束、改組）就把還活著的成員還原；還在就補上新生的輔助程序
+        let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        foregroundProtection.observe(frontPid, at: now)
         var demotionsChanged = false
         for (key, d) in demoted {
+            // 掃描期間使用者可能已切到該 App；先還原，再考慮加入新生輔助程序。
+            if let pid = info[key]?.app?.pid, pid == frontPid {
+                restore(groupId: key)
+                continue
+            }
             guard let g = info[key] else {
                 Self.restore(d.pids)
                 demoted[key] = nil
@@ -268,7 +320,12 @@ final class LagDetector: ObservableObject {
         if demotionsChanged { persistDemoted() }
 
         // 間隔太短算不準（第一次只建立基準）
-        guard dt >= min(1, Self.interval * 0.5) else {
+        guard rates != nil, dt >= min(0.2, samplingInterval * 0.5), dt <= max(1, samplingInterval * 3) else {
+            tracks.removeAll()
+            topCPU = []
+            var next = report
+            next.runaways.removeAll { !$0.isDemoted }
+            if next != report { report = next }
             if demotionsChanged { updateFlags() }
             return
         }
@@ -277,7 +334,7 @@ final class LagDetector: ObservableObject {
         var groupCPU: [String: Double] = [:]
         var top: [(String, Double)] = []
         for (key, g) in info {
-            let x = Double(groupNs[key] ?? 0) / 1e9 / dt
+            let x = measuredCPU[key] ?? 0
             groupCPU[key] = x
             var t = (tracks[key] ?? Track()).stepped(cpu: x, dt: dt, now: now)
             // 沒在用 CPU 的群組不必記（幾百個閒置程序）；降級中的一定要留著，卡片上才看得到
@@ -303,7 +360,6 @@ final class LagDetector: ObservableObject {
         }
 
         // 失控清單 + 降級中的項目
-        let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
         var active: [Runaway] = []
         var calmed: [Runaway] = []
         for (key, t) in tracks {
@@ -466,8 +522,13 @@ final class LagDetector: ObservableObject {
     // MARK: 自動處理與通知
 
     private func autoDemoteIfAppropriate(_ r: Runaway, info: GroupInfo?) {
-        guard settings.autoDemote, !r.isFrontmost, demoted[r.id] == nil, !userRestored.contains(r.id),
+        guard !SelfTest.isEnabled, settings.autoDemote, !r.isFrontmost,
+              demoted[r.id] == nil, !userRestored.contains(r.id),
               r.duration >= Self.autoDemoteAfter, Self.isBackgroundType(info) else { return }
+        if let pid = info?.app?.pid {
+            guard !foregroundProtection.protects(pid, frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                                                 at: Date()) else { return }
+        }
         let done = Self.demote(info?.pids ?? r.pids)
         guard !done.isEmpty else { return }
         demoted[r.id] = Demotion(pids: done, isAuto: true)
@@ -493,7 +554,7 @@ final class LagDetector: ObservableObject {
     }
 
     private func notifyIfAppropriate(_ r: Runaway) {
-        guard settings.lagAlerts, Updater.isBundled, !r.isFrontmost, r.duration >= Self.notifyAfter else { return }
+        guard !SelfTest.isEnabled, settings.lagAlerts, Updater.isBundled, !r.isFrontmost, r.duration >= Self.notifyAfter else { return }
         let now = Date()
         if let last = notified[r.name], now.timeIntervalSince(last) < Self.notifyEvery { return }
         notified[r.name] = now
@@ -512,6 +573,7 @@ final class LagDetector: ObservableObject {
     // MARK: 降級清單的保存（萬一管家當機，下次啟動先把上次降的還原）
 
     private func persistDemoted() {
+        guard !SelfTest.isEnabled else { return }
         let all: [[NSNumber]] = demoted.values.flatMap { d in
             d.pids.map { [NSNumber(value: $0.key), NSNumber(value: Int64(clamping: $0.value))] }
         }
@@ -538,7 +600,9 @@ final class LagDetector: ObservableObject {
         var done: [pid_t: UInt64] = [:]
         for pid in pids where pid > 0 {
             guard let start = ProcessScanner.startTime(pid) else { continue }
-            if let p = ProcessScanner.basePriority(pid), p <= 4 { continue }
+            guard let p = ProcessScanner.basePriority(pid), p > 4 else { continue }
+            // 讀身分與操作間再核對一次，避免程序剛好退出、PID 被重用。
+            guard ProcessScanner.startTime(pid) == start else { continue }
             if setpriority(PRIO_DARWIN_PROCESS, id_t(pid), PRIO_DARWIN_BG) == 0 { done[pid] = start }
         }
         return done
@@ -583,7 +647,7 @@ final class LagDetector: ObservableObject {
             Runaway(id: "demo-3", name: "Dropbox", pids: [], cpu: 0.24, duration: 0,
                     appPid: nil, canQuit: true, isActive: false, isDemoted: true, isFrontmost: false),
         ]
-        r.heat = HeatReading(level: 99, speedLimit: 100, state: .fair)
+        r.heat = HeatReading(level: 99, speedLimit: 75, state: .serious)
         r.highRefreshHz = 144
         r.rebootDays = 7
         report = r

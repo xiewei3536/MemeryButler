@@ -18,13 +18,24 @@
 
 ---
 
+## New in 1.5.0 — smoothness, not empty-RAM numbers
+
+- **Less background work:** memory polling is 2s with the panel open, 6s hidden, and 10s hidden in Low Power Mode (4s while visible). Warning/critical pressure keeps a 2s cadence plus immediate kernel notifications. Process scans use 10s/15s/30s. Hidden Apps/System tabs cancel their polling tasks entirely.
+- **Foreground protection:** automatic priority reduction excludes the foreground app and apps used within the last two minutes. Sleep restores priorities and discards stale CPU/rate baselines; waking does not catch up missed releases. Downloads are no longer automatic-demotion candidates.
+- **Reliable diagnostics:** CPU deltas are calculated per process and start time before grouping helpers. Undocumented raw thermal values are not interpreted as percentages or proof of throttling. High refresh rates alone are not diagnosed as a problem; no display settings are changed automatically.
+- **Safer actions:** when memory pressure, swap, compression, or heat makes forced cleaning unhelpful, the overview offers **Review apps** instead. Manual releases also respect serious thermal pressure. Your apps are never quit or restarted automatically.
+- **Long-running reliability:** reuse the Mach host port instead of leaking one send-right reference per system sample. Auto-free cooldown/backoff survives relaunches, and disabling pressure-triggered releases also disables the kernel-event path.
+- **Verified updates:** check HTTP status, repository URL, stable version, expected file size and SHA-256 when GitHub provides it; validate bundle identity/version and code signature before replacement. Stage on the same volume and restore the old app if the final rename fails. Existing releases use ad-hoc signatures, not Developer ID notarization.
+
+For repeatable verification, run `./scripts/verify.sh` or `./scripts/verify.sh --snapshots`. See [development and validation](docs/DEVELOPMENT.md).
+
 ## Why
 
 Macs with 8GB of RAM spend a lot of time swapping and compressing memory, and everything feels sluggish. MemoryButler is a tiny native menu bar app that monitors memory pressure in real time and **automatically frees memory at the right moment** — no clicking required, no root password, no Electron bloat (it idles at ~35MB itself).
 
 ## Features
 
-- 🐢 **Lag detection** — finds what is actually making the Mac slow and says it in one line: an app hogging the CPU (e.g. a stuck sync client at 90% for an hour), memory being read back from disk *right now* (MB/s), CPU heat throttling, a high-refresh external display on Intel graphics, days of uptime with gigabytes of swap. The header shows a single verdict: Smooth / A bit slow / Laggy
+- 🐢 **Lag detection** — finds what is actually making the Mac slow and says it in one line: an app hogging the CPU (e.g. a stuck sync client at 90% for an hour), memory being read back from disk *right now* (MB/s), CPU performance limits, optional high-refresh display power trade-offs on Intel graphics, days of uptime with gigabytes of swap. The header shows a single verdict: Smooth / A bit slow / Laggy
 - 🛠 **One-click fixes** — lower a runaway's priority (no root, reversible, restored automatically when you switch to that app), restart it, or quit it. Menu-bar apps and Apple's background workers (Spotlight, Siri Suggestions, Photos analysis) that hog the CPU for 5 minutes are calmed automatically and restored once idle — never Dock apps, Apple's UI, calls, remote desktop, recorders or VPNs — with a notification after 10 minutes
 - 🧠 **Smart autonomous release** with three configurable triggers:
   1. **Kernel pressure signal** — reacts the instant macOS reports memory pressure
@@ -55,7 +66,7 @@ MemoryButler requests anonymous memory from the kernel at a controlled rate and 
 
 Before it even starts, it checks whether the compressor pool already holds more than ~12% of RAM, whether swap is already ≥ ¼ of RAM, whether the Mac is reading memory back from disk at that very moment, or whether pressure is already critical. If so, it **declines and says why** instead of pretending — measured on an 8GB Mac, that is exactly the state in which every "memory cleaner" makes things worse (an hourly schedule there reclaimed 0MB in 60 of 60 runs while pushing other apps into compression).
 
-The lag detector samples every user process's CPU time every 10 seconds (`proc_pid_rusage`, ~5ms per pass) and groups helpers under their app. Something using over half a core for 3 minutes is reported as a runaway; "lower priority" uses `setpriority(PRIO_DARWIN_PROCESS, …, PRIO_DARWIN_BG)` — the same background state macOS gives its own maintenance work — which needs no root and is undone when the process goes idle, when you switch to the app, click Restore, or quit MemoryButler (the list is saved, so even a crash can't leave anything calmed; each process is re-identified by its start time before being touched).
+The lag detector samples every user process's CPU time every 10–30 seconds (`proc_pid_rusage`) and groups helpers under their app. Something using over half a core for 3 minutes is reported as a runaway; "lower priority" uses `setpriority(PRIO_DARWIN_PROCESS, …, PRIO_DARWIN_BG)` — the same background state macOS gives its own maintenance work — which needs no root and is undone when the process goes idle, when you switch to the app, click Restore, or quit MemoryButler (the list is saved, so even a crash can't leave anything calmed; each process is re-identified by its start time before being touched).
 
 Honest caveat: if your Mac is already living in swap, no release can fix that — only quitting apps can. MemoryButler tells you so, and shows you which ones.
 
@@ -72,9 +83,10 @@ Requirements: macOS 13+, Xcode Command Line Tools (Swift 5.9+).
 Self-tests (no UI needed):
 
 ```bash
-MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler      # 533 logic checks, exit code 0/1 (run in CI)
+swift build && MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler      # 844 logic checks, exit code 0/1 (run in CI)
 MEMORYBUTLER_SELFTEST=1 dist/MemoryButler.app/Contents/MacOS/MemoryButler   # live readings + lag diagnosis
 # + MEMORYBUTLER_SNAPSHOT_DIR=/tmp/shots [MEMORYBUTLER_SNAPSHOT_DARK=1] [MEMORYBUTLER_SNAPSHOT_DEMO=1] → PNGs of every tab
+# + MEMORYBUTLER_SNAPSHOT_LANGUAGE=en|zh-Hans|zh-Hant
 # + MEMORYBUTLER_SELFTEST_RELEASE=1 → also run one real release
 ```
 

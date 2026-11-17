@@ -5,6 +5,7 @@ struct AppsView: View {
     @ObservedObject private var usage = AppModel.shared.apps
     @ObservedObject private var settings = AppModel.shared.settings
     @State private var confirmingId: String?
+    @ObservedObject private var panel = AppModel.shared.panel
 
     var body: some View {
         VStack(spacing: 10) {
@@ -19,10 +20,13 @@ struct AppsView: View {
                 placeholder
             }
         }
-        .task {
-            // 每 4 秒刷新一次；面板關著（視圖仍活著）時跳過，不做沒人看的掃描
+        .task(id: panel.isVisible) {
+            // 關閉面板即取消整個取樣工作，不再每隔幾秒醒來檢查一次可見性。
+            guard panel.isVisible else { return }
+            await usage.refresh()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             while !Task.isCancelled {
-                if AppModel.shared.panel.isVisible || !usage.hasScanned { await usage.refresh() }
+                await usage.refresh()
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
             }
         }

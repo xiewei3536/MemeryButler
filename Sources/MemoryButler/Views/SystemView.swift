@@ -5,6 +5,7 @@ import AppKit
 struct SystemView: View {
     @ObservedObject private var system = AppModel.shared.system
     @ObservedObject private var settings = AppModel.shared.settings
+    @ObservedObject private var panel = AppModel.shared.panel
 
     var body: some View {
         VStack(spacing: 10) {
@@ -16,12 +17,14 @@ struct SystemView: View {
                 placeholder
             }
         }
-        .task {
-            // 第一次取兩個樣本（CPU 使用率要兩點才算得出），之後每 2 秒；面板關著時不取樣
+        .task(id: panel.isVisible) {
+            // 關閉面板即取消整個取樣工作，不再每隔幾秒醒來檢查一次可見性。
+            guard panel.isVisible else { return }
+            system.resetCPUWindow()
             await system.refresh()
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             while !Task.isCancelled {
-                if AppModel.shared.panel.isVisible || system.current?.cpuUsage == nil { await system.refresh() }
+                await system.refresh()
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
@@ -65,14 +68,10 @@ struct SystemView: View {
 
     private func tiles(for s: SystemSample) -> some View {
         let dash = L("sys.na")
-        // 窄格子裡只放得下一行：等級數字，正在降速時才附上速度
+        // 私有 thermal_level 沒有穩定的公開刻度，不再把原始值當成「過熱百分比」。
         let throttle: String = {
-            let speed = s.cpuSpeedLimit ?? 100
-            if let level = s.thermalLevel {
-                return speed < 100 ? LF("sys.throttle.value", level, speed) : "\(level)"
-            }
-            if speed < 100 { return LF("sys.throttle.speedOnly", speed) }
-            return s.thermalState == .nominal || s.thermalState == .fair ? L("sys.throttle.none") : L("sys.throttle.hot")
+            if let speed = s.cpuSpeedLimit, speed < 100 { return LF("sys.throttle.speedOnly", speed) }
+            return s.isThrottling ? L("sys.throttle.hot") : L("sys.throttle.none")
         }()
         // 窄格只放健康百分比；循環次數放到下方資訊卡
         let battery: String = s.battery?.healthFraction.map { Fmt.percent($0) } ?? dash

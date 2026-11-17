@@ -57,6 +57,8 @@ enum SelfTest {
     @MainActor
     static func run() async {
         let model = AppModel.shared
+        if let raw = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_LANGUAGE"],
+           let language = AppLanguage(rawValue: raw) { L10n.language = language }
         let s = model.monitor.current
         print("[selftest] total=\(Fmt.bytes(s.total)) used=\(Fmt.percent(s.usedFraction)) "
               + "available=\(Fmt.bytes(s.available)) swap=\(Fmt.bytes(s.swapUsed)) "
@@ -91,6 +93,7 @@ enum SelfTest {
         await model.lag.tick()
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         await model.lag.tick()
+        model.monitor.refresh()
         let m = model.monitor.current
         print("[selftest] lag: swapIn=\(Fmt.rate(m.swapInRate)) swapOut=\(Fmt.rate(m.swapOutRate)) "
               + "insight=\(HealthInsight.from(m)) heat=\(model.lag.report.heat.map { "level \($0.level ?? -1) speed \($0.speedLimit ?? -1)" } ?? "ok") "
@@ -102,6 +105,7 @@ enum SelfTest {
         for r in model.lag.report.runaways {
             print("[selftest]   \(r.isActive ? "runaway" : "calmed"): \(r.name) \(Int(r.cpu * 100))% for \(Int(r.duration))s demoted=\(r.isDemoted)")
         }
+        print("[selftest] monitoring: memory=\(model.monitor.samplingInterval)s processes=\(model.lag.samplingInterval)s; automatic actions disabled")
         print("[selftest] autopilot: futileStreak=\(model.autopilot.futileStreak) suspended=\(model.autopilot.isSuspended) "
               + "decision=\(model.autopilot.lastDecision)")
 
@@ -129,7 +133,8 @@ enum SelfTest {
 
     @MainActor
     private static func renderSnapshots(to dir: String) {
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do { try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true) }
+        catch { print("[snapshot] cannot create output: \(error.localizedDescription)"); exit(1) }
         // MEMORYBUTLER_SNAPSHOT_DARK=1 → 以深色外觀渲染（動態系統色會跟著解析）
         let dark = ProcessInfo.processInfo.environment["MEMORYBUTLER_SNAPSHOT_DARK"] == "1"
         if dark { NSApp.appearance = NSAppearance(named: .darkAqua) }
@@ -150,6 +155,11 @@ enum SelfTest {
             let natural = measure(tabContent(tab))
             let shown = min(natural, panel.contentMaxHeight)
             let whole = measure(PopoverView(initialTab: tab), width: 332)
+            guard natural.isFinite, whole.isFinite, natural > 0, whole > 0,
+                  whole <= max(panel.screenHeight, Layout.minContentHeight + Layout.panelChrome) + 1 else {
+                print("[layout] FAIL: \(tab) natural=\(natural) panel=\(whole) screen=\(panel.screenHeight)")
+                exit(1)
+            }
             print("[layout]   \(tab): natural \(Int(natural))pt → \(natural > panel.contentMaxHeight ? "scrolls" : "fits"); "
                   + "panel \(Int(whole))pt (chrome \(Int(whole - shown))pt, screen \(Int(panel.screenHeight))pt)")
         }
@@ -194,7 +204,7 @@ enum SelfTest {
         return renderer.nsImage?.size.height ?? 0
     }
 
-    /// AppKit 支援的控制項（分頁選擇器、開關、連結）在 ImageRenderer 裡會是黃色佔位，屬正常現象
+    /// 控制項透過 renderingSnapshot 提供靜態替代；正式 App 仍使用原生控制項。
     @MainActor
     private static func render<V: View>(_ view: V, name: String, dir: String, dark: Bool = false) {
         let renderer = ImageRenderer(
@@ -209,10 +219,11 @@ enum SelfTest {
               let rep = NSBitmapImageRep(data: tiff),
               let png = rep.representation(using: .png, properties: [:]) else {
             print("[snapshot] \(name): render failed")
-            return
+            exit(1)
         }
         let path = "\(dir)/\(name).png"
-        try? png.write(to: URL(fileURLWithPath: path))
+        do { try png.write(to: URL(fileURLWithPath: path)) }
+        catch { print("[snapshot] write failed: \(error.localizedDescription)"); exit(1) }
         print("[snapshot] \(path) \(Int(image.size.width))x\(Int(image.size.height))pt")
     }
 }

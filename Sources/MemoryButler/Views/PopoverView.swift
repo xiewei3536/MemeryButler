@@ -70,7 +70,7 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack {
-            Link(destination: AppInfo.repoURL) {
+            SnapshotLink(destination: AppInfo.repoURL) {
                 HStack(spacing: 3) {
                     Text("MemoryButler \(Updater.isBundled ? Updater.currentVersion : "dev")")
                     Image(systemName: "arrow.up.forward.square")

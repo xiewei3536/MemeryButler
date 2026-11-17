@@ -53,10 +53,13 @@ struct MemorySample {
 // MARK: - 低階讀取
 
 enum MemoryReader {
+    // mach_host_self() 每呼叫一次都新增一份 send-right 引用。常駐程式只取得一次、沿用到結束，
+    // 否則每次記憶體／CPU 取樣都會累積核心 port 引用（100 次取樣實測 +100）。
+    static let hostPort: host_t = mach_host_self()
 
     static let pageSize: UInt64 = {
         var size: vm_size_t = 0
-        host_page_size(mach_host_self(), &size)
+        host_page_size(hostPort, &size)
         return size == 0 ? 4096 : UInt64(size)
     }()
 
@@ -67,7 +70,7 @@ enum MemoryReader {
         )
         let kr = withUnsafeMutablePointer(to: &stats) { ptr in
             ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(hostPort, HOST_VM_INFO64, $0, &count)
             }
         }
         return kr == KERN_SUCCESS ? stats : nil
@@ -105,7 +108,7 @@ enum MemoryReader {
     }
 
     /// 單一程序的實體佔用（與「活動監視器」的「記憶體」欄位同口徑）與累計 CPU 時間（mach 絕對時間單位）
-    static func usage(of pid: pid_t) -> (footprint: UInt64, cpuTime: UInt64)? {
+    static func usage(of pid: pid_t) -> (footprint: UInt64, cpuTime: UInt64, startTime: UInt64)? {
         var info = rusage_info_v4()
         let rc = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
             ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
@@ -113,7 +116,7 @@ enum MemoryReader {
             }
         }
         guard rc == 0 else { return nil }
-        return (info.ri_phys_footprint, info.ri_user_time &+ info.ri_system_time)
+        return (info.ri_phys_footprint, info.ri_user_time &+ info.ri_system_time, info.ri_proc_start_abstime)
     }
 
     static func sample() -> MemorySample {

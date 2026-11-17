@@ -4,34 +4,48 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing stable version tag (e.g. v1.5.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build-and-release:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0 # 讓 CFBundleVersion 的 commit 計數與本機一致
+      - name: Validate stable tag
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(git describe --tags --exact-match)" = "$RELEASE_TAG"
       - name: Build universal .app and .dmg
         env:
-          # 由 tag 決定 App 版本號，確保與 release 一致（見 build.sh 說明）
-          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          VERSION: ${{ env.RELEASE_TAG }}
         run: ./build.sh
-
-      - name: Verify universal binary
-        run: lipo -info dist/MemoryButler.app/Contents/MacOS/MemoryButler
-
-      - name: Logic checks
+      - name: Verify universal binary and signature
+        run: |
+          lipo -verify_arch x86_64 arm64 dist/MemoryButler.app/Contents/MacOS/MemoryButler
+          codesign --verify --deep --strict dist/MemoryButler.app
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' dist/MemoryButler.app/Contents/Info.plist)" = "${RELEASE_TAG#v}"
+      - name: Logic and safety regression checks
         run: MEMORYBUTLER_SELFTEST=checks dist/MemoryButler.app/Contents/MacOS/MemoryButler
-
       - name: Create release and upload DMG
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" \
-            --title "MemoryButler $TAG" \
-            --notes-file .github/RELEASE_NOTES.md 2>/dev/null || true
-          gh release upload "$TAG" dist/MemoryButler.dmg --clobber
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/MemoryButler.dmg --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/MemoryButler.dmg \
+              --verify-tag --title "MemoryButler $RELEASE_TAG" --notes-file .github/RELEASE_NOTES.md
+          fi

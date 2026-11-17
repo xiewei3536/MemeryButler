@@ -6,15 +6,26 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-check:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build
-        run: swift build
-
-      # 純邏輯自我檢查：門檻、拒絕出手條件、無效學習、失控遲滯、三語格式字串、背景優先權（見 Checks.swift）
-      - name: Logic checks
+      - name: Build (warnings are errors)
+        run: swift build -Xswiftc -warnings-as-errors
+      - name: Logic and safety regression checks
         run: MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler
+      - name: Read-only runtime and small-screen layout smoke test
+        env:
+          MEMORYBUTLER_SELFTEST: '1'
+          MEMORYBUTLER_SNAPSHOT_DIR: /tmp/memorybutler-snapshots
+          MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT: '695'
+        run: .build/debug/MemoryButler
+      - name: Upload UI snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: memorybutler-ui
+          path: /tmp/memorybutler-snapshots

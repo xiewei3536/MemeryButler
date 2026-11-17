@@ -1,3 +1,32 @@
+## What's new in 1.5.0 — smoothness without extra pressure
+
+**繁體中文**
+- 順暢優先：不適合清理時改顯示保護狀態與「查看 App」，手動操作也會避開嚴重熱壓力；不自動關閉 App、不更改螢幕設定。
+- 背景更輕：一般隱藏時記憶體取樣由 2 秒改 6 秒，程序掃描 10 秒改 15 秒；低耗電模式再降頻，壓力通知仍即時。隱藏分頁取消定時工作。
+- 前景及最近 2 分鐘用過的 App 不會被自動降級；睡眠時還原優先權、喚醒後重建取樣基準。
+- 修正程序加入／退出與 PID 重用造成的 CPU 誤判；原始熱感測值不再被誤當百分比或降頻證據。
+- 修正每次取樣都累積 Mach port 引用的長時間常駐問題；保留跨重啟冷卻／退避，修正關閉壓力觸發仍被核心事件啟動的路徑。
+- 更新檔先驗證來源、大小、可用的 SHA-256、App 身分／版本與簽章，再於同磁碟換版；失敗還原。現有 App 仍採 ad-hoc 簽章，並非 Developer ID 公證。
+- 844 項邏輯／安全回歸檢查，新增三語、深淺色、小螢幕驗證腳本與 CI 快照。
+
+**English**
+- Smoothness-first protection card instead of prompting unhelpful cleaning; manual releases also respect serious heat. No automatic app quitting or display-setting changes.
+- Adaptive memory/process cadence, no hidden-tab polling tasks, sleep/wake baseline reset, and a two-minute grace period for recently used apps.
+- Correct per-process CPU deltas with PID/start-time checks; no undocumented thermal-scale guesses. Fix a host-port send-right leak in repeated memory/CPU sampling.
+- Persistent auto-free cooldown/backoff; disabling pressure triggers now covers kernel events too.
+- Verify update origin, file size, available SHA-256, bundle identity/version and signature before staged same-volume replacement with rollback. Ad-hoc signed, not Developer ID notarized.
+- 844 logic/safety checks; reproducible three-language light/dark small-screen snapshots and CI smoke coverage.
+
+**简体中文**
+- 流畅优先保护卡取代无效清理提示，手动释放也避开严重热压力；不自动关闭 App 或更改显示设置。
+- 自适应内存／进程取样，隐藏页面不再轮询；睡眠唤醒重建基准，最近使用过的 App 有两分钟前台保护。
+- 修复辅助进程变化与 PID 重用导致的 CPU 误判、原始热感测值误读，以及持续取样的 Mach port 引用累积。
+- 保留跨重启冷却／退避；关闭压力触发同样覆盖内核事件。
+- 更新前验证来源、大小、可用 SHA-256、App 标识／版本及签名；同盘暂存替换，失败恢复。仍为 ad-hoc 签名，非 Developer ID 公证。
+- 844 项逻辑／安全检查，新增三语、深浅色、小屏幕快照脚本与 CI 验证。
+
+---
+
 ## What's new in 1.4.1
 
 **English** — Fix: on smaller or HiDPI-scaled screens (e.g. a monitor running "looks like 1280×720") the panel was taller than the screen and its bottom was cut off. The panel now sizes itself to the screen it opens on and scrolls only when the content doesn't fit, and each tab remembers its height so switching tabs doesn't jump. The Overview now puts the verdict and actions first and the chart last, and is tightened so the everyday case fits a 720-point-tall screen without scrolling. The gauge ring is no longer clipped at the edge, Apps rows are slightly tighter so nine apps fit, and History's Clear button moved into the summary card. The self-test now reports each tab's natural height against the screen (`MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT` simulates other screens).

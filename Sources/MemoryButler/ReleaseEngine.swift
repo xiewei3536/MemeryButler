@@ -36,6 +36,7 @@ enum SkipReason: String, CaseIterable {
     case swapping         // 交換空間此刻正在成長：系統已經在寫磁碟，別添亂
     case thrashing        // 此刻正在頻繁從磁碟換回記憶體：再擠只會讓換頁更兇
     case swapHeavy        // 交換空間已達實體記憶體 1/4：工作集早已超過 RAM，壓載只會把 App 擠進磁碟
+    case thermal          // 熱壓力嚴重：手動操作也不額外施壓
     case critical         // 壓力已經緊繃
 }
 
@@ -138,7 +139,8 @@ final class ReleaseEngine: ObservableObject {
         let swapGrew = probe.swapUsed > before.swapUsed
         let probeRate = Double(probe.swapInsTotal >= before.swapInsTotal ? probe.swapInsTotal - before.swapInsTotal : 0)
             / max(0.05, probe.date.timeIntervalSince(before.date))
-        if let skip = Self.preflight(before, swapGrew: swapGrew, swapInRate: max(recentSwapInRate, probeRate)) {
+        if let skip = Self.preflight(probe, swapGrew: swapGrew, swapInRate: max(recentSwapInRate, probeRate),
+                                     thermalState: ProcessInfo.processInfo.thermalState) {
             setTransient(.skipped(skip), seconds: 6)
             return .skipped(skip)
         }
@@ -199,7 +201,9 @@ final class ReleaseEngine: ObservableObject {
     }
 
     /// 起跑前判定：這一刻出手會不會只是把別的 App 寫進磁碟
-    nonisolated static func preflight(_ s: MemorySample, swapGrew: Bool, swapInRate: Double = 0) -> SkipReason? {
+    nonisolated static func preflight(_ s: MemorySample, swapGrew: Bool, swapInRate: Double = 0,
+                                      thermalState: ProcessInfo.ThermalState = .nominal) -> SkipReason? {
+        if thermalState == .serious || thermalState == .critical { return .thermal }
         if s.pressure == .critical { return .critical }
         if swapGrew { return .swapping }
         if swapInRate >= HealthInsight.thrashingRate { return .thrashing }
@@ -270,7 +274,8 @@ final class ReleaseEngine: ObservableObject {
             if compressed > limits.compressorHardCap { reason = .compressorCap; break }
             if compressed > limits.compressorStart &+ limits.compressorGrowthCap { reason = .compressorGrowth; break }
             // 煞車 4：機器過熱，不再添柴
-            if ProcessInfo.processInfo.thermalState == .critical { reason = .thermal; break }
+            let thermal = ProcessInfo.processInfo.thermalState
+            if thermal == .serious || thermal == .critical { reason = .thermal; break }
             // 煞車 5：進入「警告」區後再持續 2.5 秒——這段時間才是核心
             // 真正回收快取、壓縮閒置 App 的時候，太早停手等於白跑
             if level == .warning {

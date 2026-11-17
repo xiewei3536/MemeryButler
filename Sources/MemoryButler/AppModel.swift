@@ -19,6 +19,8 @@ final class AppModel: ObservableObject {
     let lag: LagDetector
     let feed: PanelFeed
     let menuBar: MenuBarModel
+    private var activitySubscriptions = Set<AnyCancellable>()
+    private var activityObservers: [NSObjectProtocol] = []
 
     private init() {
         let monitor = MemoryMonitor()
@@ -37,6 +39,34 @@ final class AppModel: ObservableObject {
         lag.onAutoDemote = { [weak autopilot] text in autopilot?.note(text) }
         monitor.start()
         lag.start()
+        panel.$isVisible.removeDuplicates().sink { [weak self] visible in
+            self?.configureActivity(visible: visible)
+        }.store(in: &activitySubscriptions)
+        activityObservers.append(NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.configureActivity(visible: self.panel.isVisible)
+            }
+        })
+        let workspace = NSWorkspace.shared.notificationCenter
+        activityObservers.append(workspace.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.monitor.suspend(); self?.lag.suspend() }
+        })
+        activityObservers.append(workspace.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.autopilot.resetAfterWake(); self?.monitor.resume(); self?.lag.resume() }
+        })
+    }
+
+    private func configureActivity(visible: Bool) {
+        let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        monitor.configure(visible: visible, lowPower: lowPower)
+        lag.configure(visible: visible, lowPower: lowPower)
     }
 
     func manualRelease() {
@@ -78,19 +108,31 @@ final class MenuBarModel: ObservableObject {
 @MainActor
 final class PanelFeed: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
+    private var pending = false
 
     init(monitor: MemoryMonitor, lag: LagDetector, panel: PanelState) {
         monitor.objectWillChange
             .merge(with: lag.objectWillChange)
             .sink { [weak self, weak panel] _ in
-                if panel?.isVisible == true { self?.objectWillChange.send() }
+                if panel?.isVisible == true { self?.invalidate() }
             }
             .store(in: &cancellables)
         panel.$isVisible
             .removeDuplicates()
             .filter { $0 }
-            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .sink { [weak self] _ in self?.invalidate() }
             .store(in: &cancellables)
+    }
+
+    /// 一次取樣會變更 current、history 與診斷；下一輪只通知一次，而且保證讀到更新後的值。
+    private func invalidate() {
+        guard !pending else { return }
+        pending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pending = false
+            self.objectWillChange.send()
+        }
     }
 }
 

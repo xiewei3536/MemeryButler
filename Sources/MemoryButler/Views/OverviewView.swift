@@ -25,7 +25,7 @@ struct OverviewView: View {
             gaugeSection
             LagCard(show: show)
             statsStrip
-            ReleaseButton()
+            ReleaseButton(showApps: { show(.apps) })
             autoStatusCard
             HistoryChartCard()
         }
@@ -390,10 +390,70 @@ struct HistoryChartCard: View {
 // MARK: - 釋放按鈕
 
 struct ReleaseButton: View {
+    var showApps: () -> Void = {}
+    @ObservedObject private var feed = AppModel.shared.feed
     @ObservedObject private var engine = AppModel.shared.engine
     @ObservedObject private var settings = AppModel.shared.settings
 
     var body: some View {
+        if let reason = blockingReason {
+            protectedAction(reason)
+        } else {
+            releaseButton
+        }
+    }
+
+    private var blockingReason: SkipReason? {
+        switch engine.state {
+        case .running, .done: return nil
+        default:
+            let s = AppModel.shared.monitor.current
+            return ReleaseEngine.preflight(s, swapGrew: false, swapInRate: s.swapInRate,
+                                           thermalState: ProcessInfo.processInfo.thermalState)
+        }
+    }
+
+    /// 已知無益時不再用醒目的「立即釋放」誘導操作，直接給出不打斷工作的下一步。
+    private func protectedAction(_ reason: SkipReason) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .foregroundStyle(Theme.series)
+                Text(L("protect.title"))
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer(minLength: 0)
+                Image(systemName: "leaf.fill")
+                    .foregroundStyle(Color(nsColor: .systemGreen))
+            }
+            HStack(alignment: .center, spacing: 8) {
+                Text(L("btn.skipped.\(reason.rawValue)"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button {
+                    AppModel.shared.apps.sortKey = reason == .thermal ? .cpu : .memory
+                    showApps()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(L("protect.apps"))
+                        Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold))
+                    }
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.series.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.series)
+                .help(L("protect.help"))
+            }
+        }
+        .padding(11)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.series.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.series.opacity(0.12)))
+    }
+
+    private var releaseButton: some View {
         Button(action: { AppModel.shared.manualRelease() }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)

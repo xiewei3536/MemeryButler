@@ -14,7 +14,7 @@ enum Checks {
     private static var failures = 0
     private static var passes = 0
 
-    private static func expect(_ ok: Bool, _ name: String, _ detail: @autoclosure () -> String = "") {
+    static func expect(_ ok: Bool, _ name: String, _ detail: @autoclosure () -> String = "") {
         if ok {
             passes += 1
         } else {
@@ -29,6 +29,12 @@ enum Checks {
         futility()
         runawayTracking()
         versions()
+        runtimePolicies()
+        processCPUAccounting()
+        samplingRecovery()
+        hostPortLifetime()
+        thermalReadings()
+        updateSafety()
         formatting()
         smcDecode()
         strings()

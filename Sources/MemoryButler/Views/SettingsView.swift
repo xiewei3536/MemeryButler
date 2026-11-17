@@ -10,6 +10,7 @@ struct SettingsView: View {
 
 /// 設定內容本體（自我測試的離屏快照也直接渲染這個）
 struct SettingsContent: View {
+    @Environment(\.renderingSnapshot) private var renderingSnapshot
     @ObservedObject private var settings = AppModel.shared.settings
     @ObservedObject private var updater = AppModel.shared.updater
 
@@ -83,9 +84,7 @@ struct SettingsContent: View {
                         SwitchToggle(L("set.threshold.title"), isOn: $settings.triggerOnThreshold)
                     }
                     if settings.triggerOnThreshold {
-                        Slider(value: $settings.thresholdPercent, in: 5...30, step: 1)
-                            .controlSize(.small)
-                            .accessibilityLabel(L("set.threshold.title"))
+                        SettingSlider(title: L("set.threshold.title"), value: $settings.thresholdPercent, range: 5...30, step: 1)
                     }
 
                     SettingRow(title: L("set.schedule.title"),
@@ -121,9 +120,7 @@ struct SettingsContent: View {
                            subtitle: LF("set.cooldown.sub", Int(settings.cooldownMinutes))) {
                     EmptyView()
                 }
-                Slider(value: $settings.cooldownMinutes, in: 5...60, step: 5)
-                    .controlSize(.small)
-                    .accessibilityLabel(L("set.cooldown.title"))
+                SettingSlider(title: L("set.cooldown.title"), value: $settings.cooldownMinutes, range: 5...60, step: 5)
 
                 Divider()
 
@@ -157,15 +154,24 @@ struct SettingsContent: View {
                 Divider()
 
                 SettingRow(title: L("set.lang.title"), subtitle: nil) {
-                    Picker("", selection: $settings.language) {
-                        ForEach(AppLanguage.allCases) { lang in
-                            Text(lang.displayName).tag(lang)
+                    if renderingSnapshot {
+                        HStack(spacing: 6) {
+                            Text(settings.language.displayName)
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 8))
                         }
+                        .font(.system(size: 11))
+                        .frame(width: 130, alignment: .trailing)
+                    } else {
+                        Picker("", selection: $settings.language) {
+                            ForEach(AppLanguage.allCases) { lang in
+                                Text(lang.displayName).tag(lang)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .labelsHidden()
+                        .frame(width: 130)
                     }
-                    .pickerStyle(.menu)
-                    .controlSize(.small)
-                    .labelsHidden()
-                    .frame(width: 130)
                 }
             }
         }
@@ -239,7 +245,7 @@ struct SettingsContent: View {
     }
 
     private func aboutLink(_ title: String, _ symbol: String, _ url: URL) -> some View {
-        Link(destination: url) {
+        SnapshotLink(destination: url) {
             HStack(spacing: 4) {
                 Image(systemName: symbol).font(.system(size: 10))
                 Text(title).font(.system(size: 11))
@@ -253,10 +259,9 @@ struct SettingsContent: View {
         if case .checking = updater.status {
             ProgressView().controlSize(.small)
         } else {
-            Button(L("set.update.check")) {
+            PillButton(title: L("set.update.check"), symbol: "arrow.clockwise") {
                 Task { await AppModel.shared.updater.check(userInitiated: true) }
             }
-            .controlSize(.small)
         }
     }
 
