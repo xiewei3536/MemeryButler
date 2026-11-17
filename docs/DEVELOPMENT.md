@@ -10,7 +10,7 @@
 
 腳本限制兩個編譯工作（可用 `JOBS` 調整）、將編譯警告視為錯誤，再執行 844 項檢查。涵蓋釋放守門、無效退避、CPU 身分／差額、前景保護、睡眠空窗、熱判讀、三語字串、更新來源／雜湊／App 身分。實際優先權測試只建立及操作自己的 `sleep` 子程序。Mach port 測試連續讀取記憶體／CPU，確認 send-right 引用不增加。
 
-CI 固定使用仍受支援的 `macos-15`（Apple Silicon）及 `macos-15-intel`，各自執行原生建置、844 項檢查與小螢幕快照；Release 亦使用 macOS 15。macOS 14 runner 已於 2026-11-02 退役，不再使用。
+CI 固定使用仍受支援的 `macos-15`（Apple Silicon）及 `macos-15-intel`，各自執行原生建置、844 項檢查與唯讀即時診斷；Apple Silicon 另執行小螢幕快照。Intel hosted VM 的 Metal 離屏渲染會中止，因此雲端快照放在支援的 Apple Silicon runner，本機實體 Intel 仍完整驗證三語深淺色。Release 亦使用 macOS 15。macOS 14 runner 已於 2026-11-02 退役，不再使用。
 
 ## 2. 三語、深淺色、小螢幕
 

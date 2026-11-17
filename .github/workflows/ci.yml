@@ -22,13 +22,15 @@ jobs:
         run: swift build -Xswiftc -warnings-as-errors
       - name: Logic and safety regression checks
         run: MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler
-      - name: Read-only runtime and small-screen layout smoke test
+      - name: Read-only runtime diagnostics and supported-GPU layout smoke test
         env:
           MEMORYBUTLER_SELFTEST: '1'
-          MEMORYBUTLER_SNAPSHOT_DIR: /tmp/memorybutler-snapshots
+          # Intel hosted VM 的 Metal 離屏渲染會中止；兩架構都跑診斷，快照交給 Apple Silicon。
+          MEMORYBUTLER_SNAPSHOT_DIR: ${{ matrix.os == 'macos-15' && '/tmp/memorybutler-snapshots' || '' }}
           MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT: '695'
         run: .build/debug/MemoryButler
       - name: Upload UI snapshots
+        if: matrix.os == 'macos-15'
         uses: actions/upload-artifact@v4
         with:
           name: memorybutler-ui-${{ matrix.os }}
