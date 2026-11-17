@@ -27,7 +27,7 @@
 - **长期驻留更可靠**：修复每次系统取样都会累积 Mach host port 引用的问题；冷却／退避状态重启后保留；关闭压力触发后，内核事件也不再暗中触发释放。
 - **更新前验证**：检查 HTTP 响应、项目来源、正式版号、文件大小和 GitHub 提供的 SHA-256；核对 App 标识、版本与代码签名后再替换。同磁盘先备妥新版，最后重命名失败会恢复原版。现有版本采用 ad-hoc 签名，并非 Developer ID 公证。
 
-可重复验证：`./scripts/verify.sh`；加 `--snapshots` 可检查三语、浅色／深色与小屏幕布局。详见[开发与验证说明](docs/DEVELOPMENT.md)。
+可重复验证：`./scripts/verify.sh`；加 `--snapshots` 可检查三语、浅色／深色与小屏幕布局。CI 另以 macOS 15 原生验证 Intel 与 Apple Silicon。详见[开发与验证说明](docs/DEVELOPMENT.md)。
 
 ## 为什么需要它
 

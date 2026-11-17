@@ -27,7 +27,7 @@
 - **Long-running reliability:** reuse the Mach host port instead of leaking one send-right reference per system sample. Auto-free cooldown/backoff survives relaunches, and disabling pressure-triggered releases also disables the kernel-event path.
 - **Verified updates:** check HTTP status, repository URL, stable version, expected file size and SHA-256 when GitHub provides it; validate bundle identity/version and code signature before replacement. Stage on the same volume and restore the old app if the final rename fails. Existing releases use ad-hoc signatures, not Developer ID notarization.
 
-For repeatable verification, run `./scripts/verify.sh` or `./scripts/verify.sh --snapshots`. See [development and validation](docs/DEVELOPMENT.md).
+For repeatable verification, run `./scripts/verify.sh` or `./scripts/verify.sh --snapshots`. CI checks native Intel and Apple Silicon builds on macOS 15. See [development and validation](docs/DEVELOPMENT.md).
 
 ## Why
 
