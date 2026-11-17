@@ -34,7 +34,7 @@ jobs:
         run: ./build.sh
       - name: Verify universal binary and signature
         run: |
-          lipo -verify_arch x86_64 arm64 dist/MemoryButler.app/Contents/MacOS/MemoryButler
+          lipo dist/MemoryButler.app/Contents/MacOS/MemoryButler -verify_arch x86_64 arm64
           codesign --verify --deep --strict dist/MemoryButler.app
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' dist/MemoryButler.app/Contents/Info.plist)" = "${RELEASE_TAG#v}"
       - name: Logic and safety regression checks

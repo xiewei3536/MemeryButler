@@ -83,6 +83,7 @@ cd MemeryButler
 自我测试（无需操作界面）：
 
 ```bash
+lipo dist/MemoryButler.app/Contents/MacOS/MemoryButler -verify_arch x86_64 arm64
 swift build && MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler      # 844 项逻辑检查，返回 0/1（CI 也会跑）
 MEMORYBUTLER_SELFTEST=1 dist/MemoryButler.app/Contents/MacOS/MemoryButler   # 实时读数 + 卡顿诊断
 # + MEMORYBUTLER_SNAPSHOT_DIR=/tmp/shots [MEMORYBUTLER_SNAPSHOT_DARK=1] [MEMORYBUTLER_SNAPSHOT_DEMO=1] → 每个分页输出 PNG

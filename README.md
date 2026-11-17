@@ -83,6 +83,7 @@ Requirements: macOS 13+, Xcode Command Line Tools (Swift 5.9+).
 Self-tests (no UI needed):
 
 ```bash
+lipo dist/MemoryButler.app/Contents/MacOS/MemoryButler -verify_arch x86_64 arm64
 swift build && MEMORYBUTLER_SELFTEST=checks .build/debug/MemoryButler      # 844 logic checks, exit code 0/1 (run in CI)
 MEMORYBUTLER_SELFTEST=1 dist/MemoryButler.app/Contents/MacOS/MemoryButler   # live readings + lag diagnosis
 # + MEMORYBUTLER_SNAPSHOT_DIR=/tmp/shots [MEMORYBUTLER_SNAPSHOT_DARK=1] [MEMORYBUTLER_SNAPSHOT_DEMO=1] → PNGs of every tab

@@ -54,7 +54,7 @@ MEMORYBUTLER_SNAPSHOT_SCREEN_HEIGHT=695 \
 ```bash
 VERSION=1.5.0 ./build.sh
 MEMORYBUTLER_SELFTEST=checks dist/MemoryButler.app/Contents/MacOS/MemoryButler
-lipo -verify_arch x86_64 arm64 dist/MemoryButler.app/Contents/MacOS/MemoryButler
+lipo dist/MemoryButler.app/Contents/MacOS/MemoryButler -verify_arch x86_64 arm64
 codesign --verify --deep --strict dist/MemoryButler.app
 ```
 

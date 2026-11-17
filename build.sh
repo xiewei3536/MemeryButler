@@ -41,6 +41,7 @@ else
     lipo -create "$BIN_X86" "$BIN_ARM" -output "$UNIVERSAL"
 fi
 lipo -info "$UNIVERSAL"
+lipo "$UNIVERSAL" -verify_arch x86_64 arm64
 
 echo "▸ 產生圖示…"
 ICONSET="$DIST/AppIcon.iconset"
@@ -82,7 +83,7 @@ PLIST
 
 echo "▸ Ad-hoc 簽名…"
 codesign --force --deep -s - "$BUNDLE"
-codesign --verify --deep "$BUNDLE" && echo "  簽名驗證通過"
+codesign --verify --deep --strict "$BUNDLE" && echo "  簽名驗證通過"
 
 echo "▸ 製作 DMG…"
 STAGE="$DIST/dmg-stage"
